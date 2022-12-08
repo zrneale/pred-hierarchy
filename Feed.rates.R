@@ -629,10 +629,14 @@ final.data%>%
   scale_fill_manual(values = cbPalette) 
 
 ggsave("Figures/Feedresults3.pdf", width = 9.5, height = 5.9)
-```
 
 
 
+
+
+
+#############################################
+#Old code, just keeping here just in case.
 
 
 The Indica model is looking funky. It's underestimating in the middle. Here I'm just trying to work that out
