@@ -317,12 +317,22 @@ ggsave("Figures/Heat.tolerance.pdf", width = 12.45, height = 6.72)
 
 library(HelpersMG)
 
+#First I'll try with Buenoa
 df%>%
-  LD50(alive = Numsurv, dead = Numdead, N = Totalnum, doses = "TempC")
+  filter(Species == "Buenoa")%>%
+  data.frame()%>%
+  mutate(alive = Numsurv, dead = Numdead, N = Totalnum, doses = TempC)%>%
+  LD50()
 
 
 
+#Trying a different function too, just to compare
+library(ecotox)
 
+
+df.long%>%
+  filter(Species == "Buenoa")%>%
+  LC_logit(Surv ~ TempC, data = ., p = 50)
 
 
 
