@@ -237,16 +237,16 @@ Heat.all.df <- rbind (Heat.all.df, Pachyheat)
 ##Irrorata
 
 Irrordat<-df.long%>%filter(Species=="Irrorata")
-Irmod<-glm(Surv~TempC, data=Irrordat, family="binomial",control=glm.control(maxit=500))
-summary(Irmod)
+Irr.glm<-glm(Surv~TempC, data=Irrordat, family="binomial",control=glm.control(maxit=500))
+summary(Irr.glm)
 # issue is that we have complete /quasi complete separation, so there is only one temperature where we have 0 and 1 Temp2=97, everytihng <97 =1 and everything >97=0. So there is no variance to be explained
 #Firth bias reduced log regression
 library(logistf)
-Irmod1<-logistf(formula=Surv~TempC, data=Irrordat, control=logistf.control(maxstep=10, maxit=500), pl=TRUE)
-summary(Irmod1)
+Irr.logistf<-logistf(formula=Surv~TempC, data=Irrordat, control=logistf.control(maxstep=10, maxit=500), pl=TRUE)
+summary(Irr.logistf)
 
 ndata <- with(Irrordat,data_frame(TempC = seq(min(TempC), max(TempC),length = 100)))
-ndata<-add_column(ndata,fit=predict(Irmod1,newdata=ndata,type="response"))
+ndata<-add_column(ndata,fit = predict(Irr.logistf, newdata=ndata, type = "response"))
 
 ggplot(ndata, aes(x=TempC, y=fit))+
   geom_vline(xintercept=35, linetype="dashed",size=2, color="grey")+
@@ -264,6 +264,27 @@ Heat.all.df <- ndata%>%
          lwr = fit,
          Species = "Irrorata")%>%
   rbind(Heat.all.df)
+
+#Calculate LT50 and add to a separate df
+library(MASS)
+
+##Write a function to create a data frame of all species
+
+###Create function
+getLT <- function(species, model){
+  data.frame(Species = species,
+             TempC = unname(dose.p(model))[1],
+             SE = dose.p(model)%>%attr("SE")%>%unname())
+  
+}
+
+###Run function for each species and crate df.
+
+LTdf <- rbind(getLT("Buenoa", Buen.glm),
+              getLT("Indica", Indica.glm),
+              getLT("Irrorata", Irr.logistf),
+              getLT("Copto", Copto.glm),
+              getLT("Pachy", Pachy.glm))
 
 
 
@@ -297,9 +318,13 @@ Heat.all.df%>%
         axis.text = element_text(size=20),
         strip.text = element_text(size=16, face = "italic"),
         legend.position = 0) +
-  geom_vline(xintercept = 35, linetype = "dotted", size = 2, alpha = 0.7) +
+  #geom_vline(xintercept = 35, linetype = "dotted", size = 2, alpha = 0.7) +
   scale_color_manual(values = cbPalette) +
-  scale_fill_manual(values = cbPalette)
+  scale_fill_manual(values = cbPalette) +
+  geom_point(data = LTdf, aes(x = TempC, y = .5), color = "black") +
+  geom_linerange(data = LTdf, aes(xmin = TempC - SE, xmax = TempC + SE, y = .5))
+
+  
 
 
 ggsave("Figures/Heat.tolerance.pdf", width = 12.45, height = 6.72)
@@ -308,6 +333,9 @@ ggsave("Figures/Heat.tolerance.pdf", width = 12.45, height = 6.72)
 
 
 #####################################
+
+
+#Here's a couple other methods for calculating the LT50. I might want to go with one of these
 
 #Try bootstrapping to get the temperature where survival is 50% with confidence intervals
 
@@ -339,44 +367,28 @@ df.long%>%
 
 library(MASS)
 
-dose.p(Buen.glm)%>%attr("SE")%>%unname()
-
-##I'm going to go with this one
-
-
-
-##Extract the dose
-unname(dose.p(Buen.glm))[1]
-
-
 ##Write a function to create a data frame of all species
 
-###Testing the code to be used in the function
-
-data.frame(Species = "Buenoa",
-           Temp = unname(dose.p(Buen.glm))[1],
-           SE = dose.p(Buen.glm)%>%attr("SE")%>%unname())
-
-###Make a data frame to insert the LT50's
-
-LTdf <- data.frame(Species = NULL, Temp = NULL, SE = NULL)
 
 ###Create function
 getLT <- function(species, model){
 data.frame(Species = species,
-           Temp = unname(dose.p(model))[1],
-           SE = dose.p(model)%>%attr("SE")%>%unname())%>%
-    rbind(LTdf)%>%
-    return()
-  
-  
-  
+           TempC = unname(dose.p(model))[1],
+           SE = dose.p(model)%>%attr("SE")%>%unname())
+
 }
 
-###Run function for each species
+###Run function for each species and crate df.
 
-getLT("Buenoa", Buen.glm)
-getLT("Indica", Indica.glm)
+LTdf <- rbind(getLT("Buenoa", Buen.glm),
+              getLT("Indica", Indica.glm),
+              getLT("Irrorata", Irr.logistf),
+              getLT("Copto", Copto.glm),
+              getLT("Pachy", Pachy.glm))
+
+
+          
+
 
 
 
