@@ -335,5 +335,49 @@ df.long%>%
   LC_logit(Surv ~ TempC, data = ., p = 50)
 
 
+#There's also the dose.p function in MASS. That gives the lethal dose with SE. I'm not sure how it calculates the uncertainty though, because it doesn't bootstrap.
+
+library(MASS)
+
+dose.p(Buen.glm)%>%attr("SE")%>%unname()
+
+##I'm going to go with this one
+
+
+
+##Extract the dose
+unname(dose.p(Buen.glm))[1]
+
+
+##Write a function to create a data frame of all species
+
+###Testing the code to be used in the function
+
+data.frame(Species = "Buenoa",
+           Temp = unname(dose.p(Buen.glm))[1],
+           SE = dose.p(Buen.glm)%>%attr("SE")%>%unname())
+
+###Make a data frame to insert the LT50's
+
+LTdf <- data.frame(Species = NULL, Temp = NULL, SE = NULL)
+
+###Create function
+getLT <- function(species, model){
+data.frame(Species = species,
+           Temp = unname(dose.p(model))[1],
+           SE = dose.p(model)%>%attr("SE")%>%unname())%>%
+    rbind(LTdf)%>%
+    return()
+  
+  
+  
+}
+
+###Run function for each species
+
+getLT("Buenoa", Buen.glm)
+getLT("Indica", Indica.glm)
+
+
 
 
