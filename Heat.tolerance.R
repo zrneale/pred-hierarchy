@@ -16,7 +16,8 @@ df.long<-df%>%
   mutate(Surv = 0)%>%
   dplyr::select(-Numsurv)%>%
   rbind(mutate(uncount(dplyr::select(df, - Numdead), Numsurv), Surv = 1))%>%
-  arrange(Trial, Bath, Species) 
+  arrange(Trial, Bath, Species) %>%
+  mutate(Species = fct_relevel(Species, c("Buenoa", "Indica", "Irrorata", "Copto", "Pachy"))) #Relevel for graphing
 
 
 #Write a function to compute binomial GLM's for all species
@@ -265,43 +266,107 @@ Heat.all.df <- ndata%>%
          Species = "Irrorata")%>%
   rbind(Heat.all.df)
 
+
+
+
 #Calculate LT50 and add to a separate df
 library(MASS)
 
-##Write a function to create a data frame of all species
+#Trying to get LD50 standard errors by manually bootstrapping
 
-###Create function
-getLT <- function(species, model){
-  data.frame(Species = species,
-             TempC = unname(dose.p(model))[1],
-             SE = dose.p(model)%>%attr("SE")%>%unname())
+numsim <- 10 #number of simulations to run
+
+#dataframe to insert the subsampled observations
+
+Buen.rand <- data.frame(Trial = NA,
+                        Chamber = NA,
+                        Bath = NA,
+                        TempC = NA,
+                        Species = NA,
+                        Totalnum = NA,
+                        Surv = NA,
+                        sim = NA) 
+
+#Function to run the bootstrap 
+
+getLT <- function(species, numsim){    
   
+  df <- data.frame(LT50 = NULL)  
+  
+  for(i in 1:numsim){
+    
+    n <- df.long%>%
+      filter(Species == species)%>%
+      nrow()
+    
+    rand.df <- df.long%>%
+      filter(Species == species)%>% 
+      sample_n(size = n, replace = T)%>%
+      mutate(sim = i)
+    
+    model <- rand.df%>%
+      filter(sim == i)%>%
+      glm(data = ., Surv ~ TempC, family = "binomial")
+    
+    df <- data.frame(LT50 = unname(dose.p(model))[1],
+                     Species = species)%>%
+      rbind(df)
+    
+    
+    
+  }
+  return(df)
 }
 
-###Run function for each species and crate df.
+#Run the function for each
 
-LTdf <- rbind(getLT("Buenoa", Buen.glm),
-              getLT("Indica", Indica.glm),
-              getLT("Irrorata", Irr.logistf),
-              getLT("Copto", Copto.glm),
-              getLT("Pachy", Pachy.glm))
+LTdf <- data.frame(rbind(getLT("Buenoa", 1000),
+                         getLT("Indica", 1000),
+                         #getLT("Irrorata", 1000), #Irrorata uses a different function to model, so I'll do that separately below
+                         getLT("Copto", 1000),
+                         getLT("Pachy", 1000)))
+
+#Bootstrap for Irrorata
+
+Irr.LT <- for(i in 1:10){
+  
+  n <- df.long%>%
+    filter(Species == "Irrorata")%>%
+    nrow()
+  
+  rand.df <- df.long%>%
+    filter(Species == "Irrorata")%>% 
+    sample_n(size = n, replace = T)%>%
+    mutate(sim = i)
+  
+  model <- rand.df%>%
+    filter(sim == i)%>%
+    logistf(formula = Surv ~ TempC, control = logistf.control(maxstep=10, maxit=500), pl=TRUE)
+  
+  df <- data.frame(LT50 = unname(dose.p(model))[1],
+                   Species = "Irrorata")%>%
+    rbind(df)
+  
+  df
+}
+
+LT.avg.df <- LTdf%>%
+  group_by(Species)%>%
+  dplyr::summarise(TempC = mean(LT50), numsim = n(), STDV = sd(LT50), SE = STDV / sqrt(numsim))
 
 
 
 #Graph all species
 
-##Change Species in Heat.all.df to factor
-Heat.all.df <- mutate_at(Heat.all.df, vars(Species), factor)
+##Change Species in Heat.all.df to factor and relevel for graphing
+Heat.all.df <- mutate_at(Heat.all.df, vars(Species), factor)%>%
+  mutate(Species = fct_relevel(Species, c("Buenoa", "Indica", "Irrorata", "Copto", "Pachy")))
 
-left_join(Heat.all.df,df.long, 
-          by = c("TempC", "Species"), keep = F)
-
+#Colorblind friendly palette
 cbPalette <- c("#CC79A7", "#78C1EA", "#009E73", "#E69F00", "#D55E00", "#0072B2")
 
 Heat.all.df%>%
   drop_na(Species)%>%
-  #left_join(df.long, 
-  #by = c("TempC", "Species"), keep = F)%>%
   ggplot(aes(x = TempC, y = fit, color = Species, fill = Species)) +
   geom_line(size=1) +
   facet_wrap(~Species, labeller = labeller(Species = c("Buenoa" = "Buenoa sp.", 
@@ -311,23 +376,21 @@ Heat.all.df%>%
                                                        "Pachy" = "P. longipennis",
                                                        "Tramea" = "T. carolina"))) +
   geom_point(data = df.long, aes(y = Surv), size = 2) +
-  geom_ribbon(alpha = 0.3, aes(ymin = lwr, ymax = upr)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.3, linetype = 0) +
   theme_classic() +
   labs(x = "Temperature (C)", y = "Survivorship +/- SE") +
-  theme(axis.title = element_text(size = 24),
-        axis.text = element_text(size=20),
+  theme(axis.title = element_text(size = 22),
+        axis.text = element_text(size=18),
         strip.text = element_text(size=16, face = "italic"),
         legend.position = 0) +
-  #geom_vline(xintercept = 35, linetype = "dotted", size = 2, alpha = 0.7) +
+  #geom_vline(xintercept = LTdf$TempC, linetype = "dotted", size = 2, alpha = 0.7) +
   scale_color_manual(values = cbPalette) +
   scale_fill_manual(values = cbPalette) +
-  geom_point(data = LTdf, aes(x = TempC, y = .5), color = "black") +
-  geom_linerange(data = LTdf, aes(xmin = TempC - SE, xmax = TempC + SE, y = .5))
-
-  
+  geom_point(data = LT.avg.df, aes(x = TempC, y = .5), color = "black", size = 3) 
+  geom_linerange(data = LT.avg.df, aes(xmin = TempC - SE, xmax = TempC + SE, y = .5), color = "black") 
 
 
-ggsave("Figures/Heat.tolerance.pdf", width = 12.45, height = 6.72)
+ggsave("Figures/Heat.tolerance.pdf", width = 13.32, height = 7.27)
 
 
 
@@ -336,9 +399,6 @@ ggsave("Figures/Heat.tolerance.pdf", width = 12.45, height = 6.72)
 
 
 #Here's a couple other methods for calculating the LT50. I might want to go with one of these
-
-#Try bootstrapping to get the temperature where survival is 50% with confidence intervals
-
 
 ##Trying a function that calculates LD50 using a logistic regression
 
@@ -363,19 +423,14 @@ df.long%>%
   LC_logit(Surv ~ TempC, data = ., p = 50)
 
 
-#There's also the dose.p function in MASS. That gives the lethal dose with SE. I'm not sure how it calculates the uncertainty though, because it doesn't bootstrap.
-
-library(MASS)
-
+#Trying the dose.p function in Mass
 ##Write a function to create a data frame of all species
 
-
-###Create function
 getLT <- function(species, model){
-data.frame(Species = species,
-           TempC = unname(dose.p(model))[1],
-           SE = dose.p(model)%>%attr("SE")%>%unname())
-
+  data.frame(Species = species,
+             TempC = unname(dose.p(model))[1],
+             SE = dose.p(model)%>%attr("SE")%>%unname())
+  
 }
 
 ###Run function for each species and crate df.
@@ -384,12 +439,7 @@ LTdf <- rbind(getLT("Buenoa", Buen.glm),
               getLT("Indica", Indica.glm),
               getLT("Irrorata", Irr.logistf),
               getLT("Copto", Copto.glm),
-              getLT("Pachy", Pachy.glm))
-
-
-          
-
-
-
+              getLT("Pachy", Pachy.glm))%>%
+  mutate(Species = fct_relevel(Species, c("Buenoa", "Indica", "Irrorata", "Copto", "Pachy"))) #Relevel for graphing
 
 
