@@ -243,7 +243,7 @@ summary(Irr.glm)
 # issue is that we have complete /quasi complete separation, so there is only one temperature where we have 0 and 1 Temp2=97, everytihng <97 =1 and everything >97=0. So there is no variance to be explained
 #Firth bias reduced log regression
 library(logistf)
-Irr.logistf<-logistf(formula=Surv~TempC, data=Irrordat, control=logistf.control(maxstep=10, maxit=500), pl=TRUE)
+Irr.logistf<-logistf(formula=Surv~TempC, data=Irrordat, plcontrol = logistpl.control(maxit = 100000), control=logistf.control(maxstep=10, maxit=100000), pl=TRUE)
 summary(Irr.logistf)
 
 ndata <- with(Irrordat,data_frame(TempC = seq(min(TempC), max(TempC),length = 100)))
@@ -272,20 +272,6 @@ Heat.all.df <- ndata%>%
 #Calculate LT50 and add to a separate df
 library(MASS)
 
-#Trying to get LD50 standard errors by manually bootstrapping
-
-numsim <- 10 #number of simulations to run
-
-#dataframe to insert the subsampled observations
-
-Buen.rand <- data.frame(Trial = NA,
-                        Chamber = NA,
-                        Bath = NA,
-                        TempC = NA,
-                        Species = NA,
-                        Totalnum = NA,
-                        Surv = NA,
-                        sim = NA) 
 
 #Function to run the bootstrap 
 
@@ -318,17 +304,12 @@ getLT <- function(species, numsim){
   return(df)
 }
 
-#Run the function for each
-
-LTdf <- data.frame(rbind(getLT("Buenoa", 1000),
-                         getLT("Indica", 1000),
-                         #getLT("Irrorata", 1000), #Irrorata uses a different function to model, so I'll do that separately below
-                         getLT("Copto", 1000),
-                         getLT("Pachy", 1000)))
 
 #Bootstrap for Irrorata
 
-Irr.LT <- for(i in 1:10){
+IrrLT <- data.frame(LT50 = NULL)
+
+for(i in 1:10){
   
   n <- df.long%>%
     filter(Species == "Irrorata")%>%
@@ -341,15 +322,33 @@ Irr.LT <- for(i in 1:10){
   
   model <- rand.df%>%
     filter(sim == i)%>%
-    logistf(formula = Surv ~ TempC, control = logistf.control(maxstep=10, maxit=500), pl=TRUE)
+    logistf(formula = Surv ~ TempC, data = ., plcontrol = logistpl.control(maxit = 100000), control=logistf.control(maxstep=10, maxit=100000), pl=TRUE)
   
-  df <- data.frame(LT50 = unname(dose.p(model))[1],
+  IrrLT <- data.frame(LT50 = unname(dose.p(model))[1],
                    Species = "Irrorata")%>%
-    rbind(df)
-  
-  df
+    rbind(IrrLT)
+
 }
 
+#Run the function for Buenoa, Indica, Copto, and Pachy. I'll do a separate for loop for Irrorata
+
+BuenLT <- getLT("Buenoa", 1000)
+IndLT <- getLT("Indica", 1000)
+CoptLT <- getLT("Copto", 1000)
+PachyLT <- getLT("Pachy", 1000)
+
+
+
+#Create dataset with all species
+LTdf <- data.frame(rbind(BuenLT,
+                         IndLT,
+                         IrrLT,
+                         CoptLT,
+                         PachyLT))
+
+
+
+#Find average LT50 and confidence intervals
 LT.avg.df <- LTdf%>%
   group_by(Species)%>%
   dplyr::summarise(TempC = mean(LT50),
@@ -393,6 +392,16 @@ Heat.all.df%>%
 
 
 ggsave("Figures/Heat.tolerance.pdf", width = 13.32, height = 7.27)
+
+
+
+
+
+
+
+
+
+
 
 
 
