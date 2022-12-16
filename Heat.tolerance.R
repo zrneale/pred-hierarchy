@@ -352,7 +352,9 @@ Irr.LT <- for(i in 1:10){
 
 LT.avg.df <- LTdf%>%
   group_by(Species)%>%
-  dplyr::summarise(TempC = mean(LT50), numsim = n(), STDV = sd(LT50), SE = STDV / sqrt(numsim))
+  dplyr::summarise(TempC = mean(LT50),
+                   lwrCI = quantile(LT50, 0.025),
+                   uprCI = quantile(LT50, 0.975))
 
 
 
@@ -386,8 +388,8 @@ Heat.all.df%>%
   #geom_vline(xintercept = LTdf$TempC, linetype = "dotted", size = 2, alpha = 0.7) +
   scale_color_manual(values = cbPalette) +
   scale_fill_manual(values = cbPalette) +
-  geom_point(data = LT.avg.df, aes(x = TempC, y = .5), color = "black", size = 3) 
-  geom_linerange(data = LT.avg.df, aes(xmin = TempC - SE, xmax = TempC + SE, y = .5), color = "black") 
+  geom_point(data = LT.avg.df, aes(x = TempC, y = .5), color = "black", size = 2) + 
+  geom_errorbarh(data = LT.avg.df, aes(xmin = lwrCI, xmax = uprCI, y = .5), color = "black", height = 0.1) 
 
 
 ggsave("Figures/Heat.tolerance.pdf", width = 13.32, height = 7.27)
