@@ -304,12 +304,18 @@ getLT <- function(species, numsim){
   return(df)
 }
 
+#Run the function for Buenoa, Indica, Copto, and Pachy. I'll do a separate for loop for Irrorata since it uses a different model function
+
+BuenLT <- getLT("Buenoa", 1000)
+IndLT <- getLT("Indica", 1000)
+CoptLT <- getLT("Copto", 1000)
+PachyLT <- getLT("Pachy", 1000)
 
 #Bootstrap for Irrorata
 
 IrrLT <- data.frame(LT50 = NULL)
 
-for(i in 1:10){
+for(i in 1:1000){
   
   n <- df.long%>%
     filter(Species == "Irrorata")%>%
@@ -330,21 +336,14 @@ for(i in 1:10){
 
 }
 
-#Run the function for Buenoa, Indica, Copto, and Pachy. I'll do a separate for loop for Irrorata
-
-BuenLT <- getLT("Buenoa", 1000)
-IndLT <- getLT("Indica", 1000)
-CoptLT <- getLT("Copto", 1000)
-PachyLT <- getLT("Pachy", 1000)
-
-
 
 #Create dataset with all species
 LTdf <- data.frame(rbind(BuenLT,
                          IndLT,
                          IrrLT,
                          CoptLT,
-                         PachyLT))
+                         PachyLT))%>%
+  mutate(Species = factor(Species))
 
 
 
@@ -388,7 +387,7 @@ Heat.all.df%>%
   scale_color_manual(values = cbPalette) +
   scale_fill_manual(values = cbPalette) +
   geom_point(data = LT.avg.df, aes(x = TempC, y = .5), color = "black", size = 2) + 
-  geom_errorbarh(data = LT.avg.df, aes(xmin = lwrCI, xmax = uprCI, y = .5), color = "black", height = 0.1) 
+  geom_errorbarh(data = LT.avg.df, aes(xmin = lwrCI, xmax = uprCI, y = .5), color = "black", height = 0.05) 
 
 
 ggsave("Figures/Heat.tolerance.pdf", width = 13.32, height = 7.27)
