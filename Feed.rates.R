@@ -4,7 +4,7 @@
 
 library(tidyverse)
 #load the raw data
-surv.df <- read.csv("Data_for_r1.csv",header=T)%>%
+surv.df <- read.csv("Data/Data_for_r1.csv",header=T)%>%
   mutate(Dead = 100 - Surv,
          Temp = (Temp2 - 32)*5/9)%>% #This is the temperature I'll use for analyses
   mutate_at(vars(c(Trial, Bath, Location)), funs(factor))
@@ -29,7 +29,11 @@ surv.mass.df <- mass.df%>%
   dplyr::select(c(Trial, Bath, Location, Predmass))%>%
   mutate_at(vars(c(Trial, Bath, Location)), funs(factor))%>%
   right_join(surv.df, by = c("Trial", "Bath", "Location"))%>%
-  ungroup()
+  #group_by(Pred)%>%
+  filter(Pred == "Buenoa")%>%
+  replace_na(list(Predmass = mean(Predmass)))%>%
+  arrange(Trial, Bath, Location)%>%view()
+  #ungroup()
   
 
 #I need to replace temp2 with temp1 for trial 5 because I didn't record it. For now I replaced it in the excel file, but I might want to do it in the code 
@@ -195,11 +199,6 @@ feed.data%>%
 
 #The global model isn't converging. Here's the species-specific models
 
-
-##Scaling predator mass
-feed.data <- feed.data%>%
-  mutate(Scaledpredmass = scale(Predmass))
-
 ##Create a function for the glmer's. The function takes the predator and number of terms for polynomial to use
 
 
@@ -318,7 +317,7 @@ Tram.glmer <- runglmer("Tramea", 2)
 
 #Going to try using the best model for each species rather than keeping them all the same. Here I'm just testing some code to find the best way to do this across species
 
-```{r}
+library(MuMIn)
 
 selectmodel<- function(Species){
   df <- feed.data%>%
@@ -351,7 +350,7 @@ model11 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (
 
 model12 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model13<- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model13 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
 model14 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial) + (1|Bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
@@ -378,10 +377,10 @@ model24 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|Bath), 
 
 
 
-data.frame(model = c("model1", "model2", "model3", "model4", "model5", "model6", 
+AICdf <- data.frame(model = c("model1", "model2", "model3", "model4", "model5", "model6", 
                      "model7", "model8", "model9", "model10", "model11", "model12",
                      "model13", "model14", "model15", "model16", "model17", "model18", 
-                     "model19", "model20", "model121", "model22", "model23", "model24"),
+                     "model19", "model20", "model21", "model22", "model23", "model24"),
                           AIC = c(AICc(model1), AICc(model2), AICc(model3), AICc(model4), AICc(model5), AICc(model6),
                                   AICc(model7), AICc(model8), AICc(model9), AICc(model10), AICc(model11), AICc(model12), 
                                   AICc(model13), AICc(model14), AICc(model15), AICc(model16), AICc(model17), AICc(model18),
@@ -390,18 +389,68 @@ data.frame(model = c("model1", "model2", "model3", "model4", "model5", "model6",
   mutate(delta = AIC - .[1,2])%>%
   return()
 
+#list(AICdf,
+     #lrtest(get(AICdf[1,1]), get(AICdf[2,1])),
+     #lrtest(get(AICdf[1,1]), get(AICdf[3,1])),
+     #lrtest(get(AICdf[1,1]), get(AICdf[4,1])))
 
 }
 
  
-selectmodel("Buenoa")
-selectmodel("Indica")
-selectmodel("Irrorata")
+BuenAIC <- selectmodel("Buenoa")
+IndAIC <- selectmodel("Indica")
+IrrAIC <- selectmodel("Irrorata")
 selectmodel("Copto")
 selectmodel("Pachy")
 selectmodel("Tramea")
 
 
+#Testing out some code to get the function to also provide likelihood-ratio test results
+
+model14 <- feed.data%>%
+             drop_na(Numeaten)%>%
+             filter(Pred == "Buenoa")%>%
+             glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial) + (1|Bath), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
+
+model13 <- feed.data%>%
+             drop_na(Numeaten)%>%
+             filter(Pred == "Buenoa")%>%
+             glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
+
+model2 <- feed.data%>%
+            drop_na(Numeaten)%>%
+            filter(Pred == "Buenoa")%>%
+            glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Trial) + (1|Bath), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
+
+AICdf <- data.frame(model = c("model14", "model13", "model2"),
+                    AIC = c(AICc(model14), AICc(model13), AICc(model2)))
+
+list(c(lrtest(get(AICdf[1,1]), get(AICdf[2,1]))), 
+       lrtest(get(AICdf[1,1]), get(AICdf[3,1])))
+
+list(AICdf,
+     lrtest(get(AICdf[1,1]), get(AICdf[2,1])),
+     lrtest(get(AICdf[1,1]), get(AICdf[3,1])))
+
+get(AICdf[2,1])
+
+
+
+#Figuring out some issues when I run the function with Indica. The lrtest is saying the models are fit to different datasets
+##It's giving the error when comparing models 1 and 7. Trying those here
+
+model1 <- feed.data%>%
+            drop_na(Numeaten)%>%
+            filter(Pred == "Indica")%>%
+            mutate(Predmass = replace(Predmass, Predmass == NA, mean(Predmass)))
+            glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
+
+model7 <- feed.data%>%
+            drop_na(Numeaten)%>%
+            filter(Pred == "Indica")%>%
+            glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
+
+lrtest(model1, model7)
 
 #Run the best models for each species
 
@@ -567,16 +616,16 @@ final.data%>%
   geom_line(size = 1.5) +
   geom_ribbon(alpha = 0.25, aes(ymin = lwr*100, ymax = upr*100), linetype = 0) +
   theme_classic() +
-  labs(x = "Temperature (C)", y = "# Eaten +/- CI") +   
-  theme(axis.title = element_text(size = 24),
-        axis.text = element_text(size=20),
+  labs(x = "Temperature (C)", y = "Number of Prey Eaten +/- CI") +   
+  theme(axis.title = element_text(size = 22),
+        axis.text = element_text(size=18),
         strip.text = element_text(size=16, face = "italic"),
         legend.position = 0) +
   scale_color_manual(values = cbPalette) +
   scale_fill_manual(values = cbPalette)
 
 
-ggsave("Figures/Feedresults.pdf", width = 12.45, height = 6.72)
+ggsave("Figures/Feedresults.pdf", width = 13.32, height = 7.27)
 
 ###All species in one panel WITHOUT error bars
 
@@ -639,14 +688,14 @@ ggsave("Figures/Feedresults3.pdf", width = 9.5, height = 5.9)
 #Old code, just keeping here just in case.
 
 
-The Indica model is looking funky. It's underestimating in the middle. Here I'm just trying to work that out
-```{r}
+#The Indica model is looking funky. It's underestimating in the middle. Here I'm just trying to work that out
+
 
 #Add second order temperature values
 Indata <- feed.data%>%
   drop_na(Numeaten)%>%
   filter(Pred == "Indica")%>%
-  mutate(Temp2 = Temp^2, scaledmass = scale(Predmass),
+  mutate(Temp2 = Temp^2,
          roundNumeaten = round(Numeaten),
          roundNumsurv = round(100-Numeaten))
 
@@ -679,10 +728,10 @@ averageObs(Ind.glmer.test)
 Ind.predict%>%
   ggplot(aes(x = Bath, y = fit)) +
   geom_point()
-```
 
 
-```{r}
+
+
 #The data looks like it's a saturating curve. I'll try nls with a logistic growth formula
 
 library(nlme)
@@ -709,11 +758,11 @@ nlsLM(Numeaten ~ I(k / 1 + exp(-r * (Temp - a))) + (1|Trial), data = Indata,
 
 nls(Numeaten ~ SSasymp(Temp, Asym, R0, lrc), Indata)
 
-```
 
-That's not working
-. I just keep getting singularity errors. Here's some sample code Volker sent
-```{r}
+
+#That's not working
+# I just keep getting singularity errors. Here's some sample code Volker sent
+
 ####get porpostional survival
 trisTS$propsurv<-trisTS$surv/100
 
@@ -772,11 +821,11 @@ gompST<-nlme(propsurv~SSgompertz(ArrivalS,Asym,b2,b3),
 newdatgompST<-expand.grid(Nutrient=levels(trisTS$Nutrient),ArrivalS=0:20)
 newdatgompST$pred<-predict(gompST,newdatgompST,level=0)
 ggplot(newdatgompST,aes(x=ArrivalS,y=pred, color=Nutrient))+geom_line()+theme_bw()+geom_point(data=trisTS,aes(x=ArrivalS,y=propsurv, color=Nutrient))
-```
 
-Getting the predicted values with SE is proving to be really difficult. Here I'm just testing different methods
 
-```{r}
+#Getting the predicted values with SE is proving to be really difficult. Here I'm just testing different methods
+
+
 library(merTools)
 feed.data <- as.data.frame(feed.data)
 
@@ -851,12 +900,12 @@ plot_cap(Buen.glmer, condition= "Temp", type = "response")
 ###Trying ggeffects package
 library(ggeffects)
 ggpredict(Buen.glmer, terms = "Temp [all]")
-```
 
 
-Here's the code for getting predicted values based on Volker's method in the heat tolerance data
 
-```{r}
+#Here's the code for getting predicted values based on Volker's method in the heat tolerance data
+
+
 #Create separate df of predicted values for each species. There's gotta be a more tidy way to do this but I can't think of one at the moment, barring a for loop
 
 #Buenoa
@@ -883,10 +932,10 @@ Buen.predict <- feed.data%>%
 #na.omit()%>%
 #filter(Pred == "Buenoa")%>%
 #with(data = ., data_frame(Temp = seq(min(Temp), max(Temp),
-length = 1000)))
+#length = 1000)))
 
 #ndata<-add_column(ndata,fit=predictInterval(Buen.glmer, newdata=ndata, 
-which = "fixed"))
+#which = "fixed"))
 
 #get invers link function for prediction
 ilink<-Buen.glmer@resp$family$linkinv
@@ -901,5 +950,5 @@ Indicaheat<-mutate(ndata,
                    lwr=ilink(fit_link-(se_link)), 
                    Species = "Indica",
                    TempC = (Temp2 - 32)*(5/9))
-```
+
 
