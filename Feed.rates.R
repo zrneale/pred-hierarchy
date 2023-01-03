@@ -28,13 +28,14 @@ surv.mass.df <- mass.df%>%
   filter(n() <2)%>% #Remove instances where there are two rows with different weights for the same predator
   dplyr::select(c(Trial, Bath, Location, Predmass))%>%
   mutate_at(vars(c(Trial, Bath, Location)), funs(factor))%>%
-  right_join(surv.df, by = c("Trial", "Bath", "Location"))%>%
-  #group_by(Pred)%>%
-  filter(Pred == "Buenoa")%>%
-  replace_na(list(Predmass = mean(Predmass)))%>%
-  arrange(Trial, Bath, Location)%>%view()
-  #ungroup()
+  right_join(surv.df, by = c("Trial", "Bath", "Location"))
   
+
+#Replace NA values in Predmass with species averages
+
+surv.mass.df <- surv.mass.df%>%
+  group_by(Pred)%>%
+  mutate(Predmass = replace_na(Predmass, mean(Predmass, na.rm = T)))
 
 #I need to replace temp2 with temp1 for trial 5 because I didn't record it. For now I replaced it in the excel file, but I might want to do it in the code 
 
@@ -212,108 +213,6 @@ runglmer <- function(predator, terms){
   
 }
 
-##I'll try GLM's too to compare the models
-runglm <- function(species, terms){
-  feed.data%>%
-    na.omit()%>%
-    filter(Pred == species)%>%
-    glm(data = .,cbind(round(Numeaten), round(100 - Numeaten)) ~ poly(Temp, terms) + Predmass,
-        family = "binomial")%>%
-    return()
-}
-
-
-
-
-##Looking for effects of each random effect
-feed.data%>%
-  drop_na(Numeaten)%>%
-  filter(Pred == "Buenoa")%>%
-  ggplot(aes(x = Temp, y = Numeaten, color = Location)) + 
-  #geom_smooth() +
-  geom_point() +
-  geom_jitter(width = 1)
-
-library(car)
-##Testing for significance in random effects by including them as fixed. Just gonna run these a bunch of times with different predators and different effects as fixed
-feed.data%>%
-  drop_na(Numeaten)%>%
-  filter(Pred == "Pachy")%>%
-  glmer(data = ., cbind(round(Numeaten), round(100 - Numeaten)) ~ poly(Temp, 2) +
-          (1|Trial) + (1|Bath) + (1|Location), family = "binomial")%>%
-  Anova(type = 3)
-
-##They're all significant for all species. I'm moving forward with the full models
-
-
-#Run the 1 and 2 term models for each predator
-
-
-
-
-##Buenoa - first order glmer. Delta AIC = 1.0154
-
-Buen.glmer <- runglmer("Buenoa", 2)
-
-data.frame(glmer1 = AIC(runglmer("Buenoa", 1)),
-           glmer2 = AIC(runglmer("Buenoa", 2)),
-           glm1 = AIC(runglm("Buenoa", 1)),
-           glm2 = AIC(runglm("Buenoa", 2)))
-
-##Indica - second order glmer. Delta AIC = 20.124
-
-data.frame(glmer1 = AIC(runglmer("Indica", 1)),
-           glmer2 = AIC(runglmer("Indica", 2)),
-           glm1 = AIC(runglm("Indica", 1)),
-           glm2 = AIC(runglm("Indica", 2)))
-
-##Likelihood ratio test
-library(lmtest)
-
-lrtest(runglmer("Indica", 1), runglmer("Indica", 2)) #chi-sq p value sig
-
-Ind.glmer <- runglmer("Indica", 2)
-
-##Irrorata - second order glmer. Delta AIC = 38.8905
-data.frame(glmer1 = AIC(runglmer("Irrorata", 1)),
-           glmer2 = AIC(runglmer("Irrorata", 2)),
-           glm1 = AIC(runglm("Irrorata", 1)),
-           glm2 = AIC(runglm("Irrorata", 2)))
-
-lrtest(runglmer("Irrorata", 1), runglmer("Irrorata", 2)) #p value sig
-
-Irr.glmer <- runglmer("Irrorata", 2)
-
-##Copto - second glmer. Delta AIC = 2.3712
-data.frame(glmer1 = AIC(runglmer("Copto", 1)),
-           glmer2 = AIC(runglmer("Copto", 2)),
-           glm1 = AIC(runglm("Copto", 1)),
-           glm2 = AIC(runglm("Copto", 2)))
-
-lrtest(runglmer("Copto", 1), runglmer("Copto", 2)) #p value sig
-
-Copto.glmer <- runglmer("Copto", 2)
-
-##Pachy - first order glmer. Delta AIC = 0.2969
-data.frame(glmer1 = AIC(runglmer("Pachy", 1)),
-           glmer2 = AIC(runglmer("Pachy", 2)),
-           glm1 = AIC(runglm("Pachy", 1)),
-           glm2 = AIC(runglm("Pachy", 2)))
-
-lrtest(runglmer("Pachy", 1), runglmer("Pachy", 2))# p value not sig
-
-Pachy.glmer <- runglmer("Pachy", 2)
-
-
-##Tramea 2nd order is over fit. Trying a simpler model for the polynomial
-
-data.frame(glmer1 = AIC(runglmer("Tramea", 1)),
-           glmer2 = AIC(runglmer("Tramea", 2)),
-           glm1 = AIC(runglm("Tramea", 1)),
-           glm2 = AIC(runglm("Tramea", 2)))
-Tram.glmer <- runglmer("Tramea", 2)
-
-
 
 #Going to try using the best model for each species rather than keeping them all the same. Here I'm just testing some code to find the best way to do this across species
 
@@ -389,10 +288,10 @@ AICdf <- data.frame(model = c("model1", "model2", "model3", "model4", "model5", 
   mutate(delta = AIC - .[1,2])%>%
   return()
 
-#list(AICdf,
-     #lrtest(get(AICdf[1,1]), get(AICdf[2,1])),
-     #lrtest(get(AICdf[1,1]), get(AICdf[3,1])),
-     #lrtest(get(AICdf[1,1]), get(AICdf[4,1])))
+list(AICdf,
+     lrtest(get(AICdf[1,1]), get(AICdf[2,1])),
+     lrtest(get(AICdf[1,1]), get(AICdf[3,1])),
+     lrtest(get(AICdf[1,1]), get(AICdf[4,1])))
 
 }
 
@@ -400,57 +299,11 @@ AICdf <- data.frame(model = c("model1", "model2", "model3", "model4", "model5", 
 BuenAIC <- selectmodel("Buenoa")
 IndAIC <- selectmodel("Indica")
 IrrAIC <- selectmodel("Irrorata")
-selectmodel("Copto")
-selectmodel("Pachy")
-selectmodel("Tramea")
+CoptoAIC <- selectmodel("Copto")
+PachyAIC <- selectmodel("Pachy")
+TramAIC <- selectmodel("Tramea")
 
 
-#Testing out some code to get the function to also provide likelihood-ratio test results
-
-model14 <- feed.data%>%
-             drop_na(Numeaten)%>%
-             filter(Pred == "Buenoa")%>%
-             glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial) + (1|Bath), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
-
-model13 <- feed.data%>%
-             drop_na(Numeaten)%>%
-             filter(Pred == "Buenoa")%>%
-             glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
-
-model2 <- feed.data%>%
-            drop_na(Numeaten)%>%
-            filter(Pred == "Buenoa")%>%
-            glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Trial) + (1|Bath), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
-
-AICdf <- data.frame(model = c("model14", "model13", "model2"),
-                    AIC = c(AICc(model14), AICc(model13), AICc(model2)))
-
-list(c(lrtest(get(AICdf[1,1]), get(AICdf[2,1]))), 
-       lrtest(get(AICdf[1,1]), get(AICdf[3,1])))
-
-list(AICdf,
-     lrtest(get(AICdf[1,1]), get(AICdf[2,1])),
-     lrtest(get(AICdf[1,1]), get(AICdf[3,1])))
-
-get(AICdf[2,1])
-
-
-
-#Figuring out some issues when I run the function with Indica. The lrtest is saying the models are fit to different datasets
-##It's giving the error when comparing models 1 and 7. Trying those here
-
-model1 <- feed.data%>%
-            drop_na(Numeaten)%>%
-            filter(Pred == "Indica")%>%
-            mutate(Predmass = replace(Predmass, Predmass == NA, mean(Predmass)))
-            glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
-
-model7 <- feed.data%>%
-            drop_na(Numeaten)%>%
-            filter(Pred == "Indica")%>%
-            glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
-
-lrtest(model1, model7)
 
 #Run the best models for each species
 
@@ -684,8 +537,121 @@ ggsave("Figures/Feedresults3.pdf", width = 9.5, height = 5.9)
 
 
 
+
+
+
+
+
+
+
+
+
+
 #############################################
 #Old code, just keeping here just in case.
+
+##I'll try GLM's too to compare the models
+runglm <- function(species, terms){
+  feed.data%>%
+    na.omit()%>%
+    filter(Pred == species)%>%
+    glm(data = .,cbind(round(Numeaten), round(100 - Numeaten)) ~ poly(Temp, terms) + Predmass,
+        family = "binomial")%>%
+    return()
+}
+
+
+
+
+##Looking for effects of each random effect
+feed.data%>%
+  drop_na(Numeaten)%>%
+  filter(Pred == "Buenoa")%>%
+  ggplot(aes(x = Temp, y = Numeaten, color = Location)) + 
+  #geom_smooth() +
+  geom_point() +
+  geom_jitter(width = 1)
+
+library(car)
+##Testing for significance in random effects by including them as fixed. Just gonna run these a bunch of times with different predators and different effects as fixed
+feed.data%>%
+  drop_na(Numeaten)%>%
+  filter(Pred == "Pachy")%>%
+  glmer(data = ., cbind(round(Numeaten), round(100 - Numeaten)) ~ poly(Temp, 2) +
+          (1|Trial) + (1|Bath) + (1|Location), family = "binomial")%>%
+  Anova(type = 3)
+
+##They're all significant for all species. I'm moving forward with the full models
+
+
+#Run the 1 and 2 term models for each predator
+
+
+
+
+##Buenoa - first order glmer. Delta AIC = 1.0154
+
+Buen.glmer <- runglmer("Buenoa", 2)
+
+data.frame(glmer1 = AIC(runglmer("Buenoa", 1)),
+           glmer2 = AIC(runglmer("Buenoa", 2)),
+           glm1 = AIC(runglm("Buenoa", 1)),
+           glm2 = AIC(runglm("Buenoa", 2)))
+
+##Indica - second order glmer. Delta AIC = 20.124
+
+data.frame(glmer1 = AIC(runglmer("Indica", 1)),
+           glmer2 = AIC(runglmer("Indica", 2)),
+           glm1 = AIC(runglm("Indica", 1)),
+           glm2 = AIC(runglm("Indica", 2)))
+
+##Likelihood ratio test
+library(lmtest)
+
+lrtest(runglmer("Indica", 1), runglmer("Indica", 2)) #chi-sq p value sig
+
+Ind.glmer <- runglmer("Indica", 2)
+
+##Irrorata - second order glmer. Delta AIC = 38.8905
+data.frame(glmer1 = AIC(runglmer("Irrorata", 1)),
+           glmer2 = AIC(runglmer("Irrorata", 2)),
+           glm1 = AIC(runglm("Irrorata", 1)),
+           glm2 = AIC(runglm("Irrorata", 2)))
+
+lrtest(runglmer("Irrorata", 1), runglmer("Irrorata", 2)) #p value sig
+
+Irr.glmer <- runglmer("Irrorata", 2)
+
+##Copto - second glmer. Delta AIC = 2.3712
+data.frame(glmer1 = AIC(runglmer("Copto", 1)),
+           glmer2 = AIC(runglmer("Copto", 2)),
+           glm1 = AIC(runglm("Copto", 1)),
+           glm2 = AIC(runglm("Copto", 2)))
+
+lrtest(runglmer("Copto", 1), runglmer("Copto", 2)) #p value sig
+
+Copto.glmer <- runglmer("Copto", 2)
+
+##Pachy - first order glmer. Delta AIC = 0.2969
+data.frame(glmer1 = AIC(runglmer("Pachy", 1)),
+           glmer2 = AIC(runglmer("Pachy", 2)),
+           glm1 = AIC(runglm("Pachy", 1)),
+           glm2 = AIC(runglm("Pachy", 2)))
+
+lrtest(runglmer("Pachy", 1), runglmer("Pachy", 2))# p value not sig
+
+Pachy.glmer <- runglmer("Pachy", 2)
+
+
+##Tramea 2nd order is over fit. Trying a simpler model for the polynomial
+
+data.frame(glmer1 = AIC(runglmer("Tramea", 1)),
+           glmer2 = AIC(runglmer("Tramea", 2)),
+           glm1 = AIC(runglm("Tramea", 1)),
+           glm2 = AIC(runglm("Tramea", 2)))
+Tram.glmer <- runglmer("Tramea", 2)
+
+
 
 
 #The Indica model is looking funky. It's underestimating in the middle. Here I'm just trying to work that out
