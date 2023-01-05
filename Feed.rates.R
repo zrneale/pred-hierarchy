@@ -315,31 +315,31 @@ Buen.glmer <- feed.data%>%
 Ind.glmer <- feed.data%>%
    drop_na(Numeaten)%>%
   filter(Pred == "Indica")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Trial) + (1|Location), family = "binomial", 
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + scale(Predmass) + (1|Bath) + (1|Trial) + (1|Location), family = "binomial", 
         data = ., control = glmerControl(optimizer = "bobyqa"))
 
 Irr.glmer <- feed.data%>%
   drop_na(Numeaten)%>%
   filter(Pred == "Irrorata")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", 
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", 
         data = ., control = glmerControl(optimizer = "bobyqa"))
 
 Copto.glmer <- feed.data%>%
   drop_na(Numeaten)%>%
   filter(Pred == "Copto")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", 
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", 
         data = ., control = glmerControl(optimizer = "bobyqa"))
   
 Pachy.glmer <- feed.data%>%
   drop_na(Numeaten)%>%
   filter(Pred == "Pachy")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", 
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", 
         data = ., control = glmerControl(optimizer = "bobyqa"))
 
 Tram.glmer <- feed.data%>%
   drop_na(Numeaten)%>%
   filter(Pred == "Tramea")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Bath), family = "binomial", 
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Bath), family = "binomial", 
         data = ., control = glmerControl(optimizer = "bobyqa"))
 
 
@@ -438,9 +438,6 @@ Tramdata$Predmass <- mean(Tramdata$Predmass, na.rm = T)
 
 ###Calculate the predicted values
 Tram.predict <- getpredict(Tram.glmer, "Tramea", Tramdata)
-
-####Tramea predict gives a warning that bath 15 isn't in the model data. I think it's because there's only one observation in that bath and its predmass is NA. I'm moving forward as is.
-
 
 ##Combine each of these to a final data set
 final.data <- rbind(Buen.predict, Irr.predict, Ind.predict, Copto.predict, Pachy.predict, Tram.predict)%>%
