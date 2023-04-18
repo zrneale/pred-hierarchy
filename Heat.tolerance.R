@@ -44,7 +44,7 @@ run.glm <- function(sp){
 Buen.glm <- run.glm("Buenoa")
 Copto.glm <- run.glm("Copto")
 Indica.glm <- run.glm("Indica")
-#Irrorata.glm <- run.gam("Irrorata") Doesn't work. I use a different method below
+#Irrorata.glm <- run.glm("Irrorata") #Doesn't work. I use a different method below
 Pachy.glm <- run.glm("Pachy")
 
 
@@ -233,7 +233,7 @@ Pachyheat%>%
 Heat.all.df <- rbind (Heat.all.df, Pachyheat)
 
 
-#The 3 easier ones are done. Now to do Irrorata. Volker sent some code that should work
+#The 4 easier ones are done. Now to do Irrorata. Volker sent some code that should work
 
 ##Irrorata
 
@@ -317,15 +317,18 @@ IrrLT <- data.frame(LT50 = NULL)
 
 for(i in 1:1000){
   
+  #Determine the sample size for the species
   n <- df.long%>%
     filter(Species == "Irrorata")%>%
     nrow()
   
+  #Create data set of resampled data
   rand.df <- df.long%>%
     filter(Species == "Irrorata")%>% 
     sample_n(size = n, replace = T)%>%
     mutate(sim = i)
   
+  #Run model with resampled data
   model <- rand.df%>%
     filter(sim == i)%>%
     logistf(formula = Surv ~ TempC, data = ., plcontrol = logistpl.control(maxit = 100000), control=logistf.control(maxstep=10, maxit=100000), pl=TRUE)

@@ -1,53 +1,24 @@
 
-
-#First, a small bit of data cleaning.  I need to make temp2 values equal to temp1 values for all rows from trial 5 plus baths 7 and 8 and trial 8
-
 library(tidyverse)
-#load the raw data
-surv.df <- read.csv("Data/Data_for_r1.csv",header=T)%>%
-  mutate(Dead = 100 - Surv,
-         Temp = (Temp2 - 32)*5/9)%>% #This is the temperature I'll use for analyses
-  mutate_at(vars(c(Trial, Bath, Location)), funs(factor))
 
-#Load predator body mass data
-mass.df <- read.csv("Pred\ Dry\ Mass.csv", header = T)
 
-#Check predator mass df for duplicates
-mass.df%>%
-  group_by(Trial, Bath, Location)%>%
-  dplyr::mutate(dupe = n()>1)%>%
-  dplyr::filter(dupe == T)
 
-mass.df%>%
-  group_by(Trial, Bath, Location)%>%
-  filter(n()<2)
+#load the raw data, add a variable of the number of dead daphnia
+feedRate.df <- read.csv("Data/pred.hierarchy.data.csv", header=T)%>%
+  mutate(dead = 100 - surv)%>%
+  mutate_at(vars(c(trial, bath, location)), funs(factor))
 
-#add the predator mass data
-surv.mass.df <- mass.df%>%
-  group_by(Trial, Bath, Location)%>%
-  filter(n() <2)%>% #Remove instances where there are two rows with different weights for the same predator
-  dplyr::select(c(Trial, Bath, Location, Predmass))%>%
-  mutate_at(vars(c(Trial, Bath, Location)), funs(factor))%>%
-  right_join(surv.df, by = c("Trial", "Bath", "Location"))
-  
 
-#Replace NA values in Predmass with species averages
+#Replace surv > 100 with 100. Any values above 100 were from counting error
+feedRate.df$surv[feedRate.df$surv > 100]<-100
 
-surv.mass.df <- surv.mass.df%>%
-  group_by(Pred)%>%
-  mutate(Predmass = replace_na(Predmass, mean(Predmass, na.rm = T)))
-
-#I need to replace temp2 with temp1 for trial 5 because I didn't record it. For now I replaced it in the excel file, but I might want to do it in the code 
 
 #Next I'll do the actual GLM to get the predicted survivor values for the controls.  Actually, not that I think about it a GLM wouldn't work because I expect the relationship to be nonlinear.  A GAM might be better, though this may be dependent on how I ultimately analyze the feeding rates.  I'll stick with GAM for now and revisit this down the line.
 
-#Replace Surv > 100 with 100
-surv.mass.df$Surv[surv.mass.df$Surv > 100]<-100
-
 #Add column for number dead for the binomial glm's
 
-surv.mass.df <- surv.mass.df%>%
-  mutate(Dead = 100 - Surv)
+feedRate.df <- feedRate.df%>%
+  mutate(dead = 100 - surv)
 
 
 #Calculate background mortality with binomial glmer
@@ -55,12 +26,12 @@ surv.mass.df <- surv.mass.df%>%
 library(lme4)
 
 #Filter all data except control treatments
-cont.df <- surv.mass.df%>%
-  filter(Pred == "Control")
+cont.df <- feedRate.df%>%
+  filter(pred == "Control")
 
 
 cont.glmer <- cont.df%>%
-  glmer(data = ., cbind(Surv, Dead) ~ Temp  + (1|Trial) + (1|Bath) + (1|Location), family = "binomial")
+  glmer(data = ., cbind(surv, dead) ~ Temp  + (1|trial) + (1|bath) + (1|location), family = "binomial")
 
 plot(cont.glmer)
 
@@ -69,7 +40,7 @@ plot(cont.glmer)
 cont.df%>%
   mutate(predicted = predict(cont.glmer, newdata = cont.df, 
                              type = "response", re.form = ~0))%>%
-  ggplot(aes(x = Temp, y = Surv)) +
+  ggplot(aes(x = Temp, y = surv)) +
   geom_line(aes(y = predicted * 100)) +
   geom_point()
 
@@ -83,9 +54,9 @@ cont.df <- cont.df%>%
 #Next, I'll need to subtract these values from 100 to get predicted background mortality for each of these temperatures.  Ultimately these background mortality values will be subtracted from the mortality values observed in the predator treatments.  I think the best way to do this is to attach the background mortality values to the data set.
 
 feed.data <-cont.df%>%
-  dplyr::select(Trial, Bath, backmortProp, backmortNum)%>%
-  right_join(surv.mass.df, by = c("Trial","Bath"), keep = F)%>%
-  mutate(Numeaten = Dead-backmortNum)
+  dplyr::select(trial, bath, backmortProp, backmortNum)%>%
+  right_join(feedRate.df, by = c("trial","bath"), keep = F)%>%
+  mutate(Numeaten = dead-backmortNum)
   
   
 
@@ -102,98 +73,98 @@ feed.data <- filter(feed.data, Numeaten != 0)
 ##Trying out a global model with all predators and species as fixed effect
 
 All.glmer <- feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glmer(cbind(round(Numeaten), round(100 - Numeaten)) ~ Temp + Pred + I(Temp^2) + Pred*Temp + Pred*I(Temp^2) +
-                (1|Predmass), family = "binomial", data = .,
+  glmer(cbind(round(Numeaten), round(100 - Numeaten)) ~ Temp + pred + I(Temp^2) + pred*Temp + pred*I(Temp^2) +
+                (1|predmass), family = "binomial", data = .,
                 control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5)))
 
 #Failed to converge
 
 #Trying glm
 All.glm <- feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   na.omit()%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Pred:Temp + Pred:I(Temp^2) +  Pred + Pred:Predmass, family = "binomial", data = ., na.action = "na.pass")
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ pred:Temp + pred:I(Temp^2) +  pred + pred:predmass, family = "binomial", data = ., na.action = "na.pass")
       
 library(MuMIn)
 #Check AIC values for different models
 Model1 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Temp + I(Temp^2) +  Pred + Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Temp + I(Temp^2) +  pred + predmass, family = "binomial", data = .)
 Model2 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Pred:Temp + I(Temp^2) +  Pred + Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ pred:Temp + I(Temp^2) +  pred + predmass, family = "binomial", data = .)
 Model3 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Pred:Temp + Pred:I(Temp^2) +  Pred + Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ pred:Temp + pred:I(Temp^2) +  pred + predmass, family = "binomial", data = .)
 
 #This one has lowest AIC
 Model4 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Pred:Temp + Pred:I(Temp^2) +  Pred + Pred:Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ pred:Temp + pred:I(Temp^2) +  pred + pred:predmass, family = "binomial", data = .)
 
 
 Model5 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Pred:Temp + I(Temp^2) +  Pred + Pred:Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ pred:Temp + I(Temp^2) +  pred + pred:predmass, family = "binomial", data = .)
 Model6 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Temp + I(Temp^2) +  Pred + Pred:Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Temp + I(Temp^2) +  pred + pred:predmass, family = "binomial", data = .)
 Model7 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Predmass:Temp + Predmass:I(Temp^2) +  Pred + Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ predmass:Temp + predmass:I(Temp^2) +  pred + predmass, family = "binomial", data = .)
 Model8 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Predmass:Temp + Predmass:I(Temp^2) +  Pred + Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ predmass:Temp + predmass:I(Temp^2) +  pred + predmass, family = "binomial", data = .)
 
 Model9 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Predmass:Temp + Predmass:I(Temp^2) +  Pred + Pred:Predmass + Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ predmass:Temp + predmass:I(Temp^2) +  pred + pred:predmass + predmass, family = "binomial", data = .)
 Model10 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Pred:Predmass:Temp + I(Temp^2) +  Pred + Predmass + Predmass:Pred, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ pred:predmass:Temp + I(Temp^2) +  pred + predmass + predmass:pred, family = "binomial", data = .)
 Model11 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Pred:Predmass:Temp + I(Temp^2) +  Pred + Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ pred:predmass:Temp + I(Temp^2) +  pred + predmass, family = "binomial", data = .)
 Model12 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Pred:Predmass:Temp + Pred:Predmass:I(Temp^2) +  Pred + Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ pred:predmass:Temp + pred:predmass:I(Temp^2) +  pred + predmass, family = "binomial", data = .)
 Model13 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Pred:Predmass:Temp + Pred:Predmass:I(Temp^2) +  Pred + Predmass + Pred:Predmass, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ pred:predmass:Temp + pred:predmass:I(Temp^2) +  pred + predmass + pred:predmass, family = "binomial", data = .)
 
 Model14 = feed.data%>%
-  filter(Pred != "Control")%>%
+  filter(pred != "Control")%>%
   drop_na(Numeaten)%>%
-  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ Pred:Predmass:Temp + Pred:Predmass:I(Temp^2) +  Pred + Predmass:Pred, family = "binomial", data = .)
+  glm(cbind(round(Numeaten), round(100 - Numeaten)) ~ pred:predmass:Temp + pred:predmass:I(Temp^2) +  pred + predmass:pred, family = "binomial", data = .)
 
 
 feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Irrorata")%>%
+  filter(pred == "Irrorata")%>%
   ggplot(aes(x = Temp, y = Numeaten)) +
            #geom_point(position = "jitter") +
            #geom_jitter(width = 1) +
-           geom_point(aes(y = predict(All.glm, newdata = drop_na(filter(feed.data, Pred == "Irrorata"), Numeaten), type = "response")*100))
+           geom_point(aes(y = predict(All.glm, newdata = drop_na(filter(feed.data, pred == "Irrorata"), Numeaten), type = "response")*100))
  
 feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Irrorata")
-  plot(x = filter(drop_na(feed.data), Pred == "Irrorata")$Temp, y = predict(All.glm, newdata = drop_na(filter(feed.data, Pred == "Irrorata"))))
+  filter(pred == "Irrorata")
+  plot(x = filter(drop_na(feed.data), pred == "Irrorata")$Temp, y = predict(All.glm, newdata = drop_na(filter(feed.data, pred == "Irrorata"))))
 
   
 #############
@@ -206,8 +177,8 @@ feed.data%>%
 runglmer <- function(predator, terms){
   feed.data%>%
     drop_na(Numeaten)%>%
-    filter(Pred == predator)%>%
-    glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, terms)  + scale(Predmass) + (1|Trial) + (1|Bath), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))%>%
+    filter(pred == predator)%>%
+    glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, terms)  + scale(predmass) + (1|trial) + (1|bath), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))%>%
     return()
   
   
@@ -221,57 +192,57 @@ library(MuMIn)
 selectmodel<- function(Species){
   df <- feed.data%>%
     drop_na(Numeaten)%>%
-    filter(Pred == Species)
+    filter(pred == Species)
     
   
 
-model1 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model1 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(predmass) + (1|trial) + (1|bath) + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model2 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Trial) + (1|Bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model2 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(predmass) + (1|trial) + (1|bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model3 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Trial), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model3 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(predmass) + (1|trial), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model4 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Trial)  + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model4 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(predmass) + (1|trial)  + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model5 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model5 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(predmass) + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model6 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(Predmass) + (1|Bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model6 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + scale(predmass) + (1|bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model7 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model7 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|trial) + (1|bath) + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model8 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Trial) + (1|Bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model8 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|trial) + (1|bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model9 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Trial), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model9 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|trial), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model10 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Trial)  + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model10 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|trial)  + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model11 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model11 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model12 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model12 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model13 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model13 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(predmass) + (1|trial) + (1|bath) + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model14 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial) + (1|Bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model14 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(predmass) + (1|trial) + (1|bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model15 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model15 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(predmass) + (1|trial), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model16 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial)  + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model16 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(predmass) + (1|trial)  + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model17 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model17 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(predmass) + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model18 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model18 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(predmass) + (1|bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model19 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model19 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|trial) + (1|bath) + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model20 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|Trial) + (1|Bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model20 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|trial) + (1|bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model21 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|Trial), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model21 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|trial), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model22 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|Trial)  + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model22 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|trial)  + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model23 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|Location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model23 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|location), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
-model24 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|Bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
+model24 <- glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp + (1|bath), family = "binomial", data = df, control = glmerControl(optimizer = "bobyqa"))
 
 
 
@@ -309,37 +280,37 @@ TramAIC <- selectmodel("Tramea")
 
 Buen.glmer <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Buenoa")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(Predmass) + (1|Trial) + (1|Bath), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
+  filter(pred == "Buenoa")%>%
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ Temp  + scale(predmass) + (1|trial) + (1|bath), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
 
 Ind.glmer <- feed.data%>%
    drop_na(Numeaten)%>%
-  filter(Pred == "Indica")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + scale(Predmass) + (1|Bath) + (1|Trial) + (1|Location), family = "binomial", 
+  filter(pred == "Indica")%>%
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + scale(predmass) + (1|bath) + (1|trial) + (1|location), family = "binomial", 
         data = ., control = glmerControl(optimizer = "bobyqa"))
 
 Irr.glmer <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Irrorata")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", 
+  filter(pred == "Irrorata")%>%
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|trial) + (1|bath) + (1|location), family = "binomial", 
         data = ., control = glmerControl(optimizer = "bobyqa"))
 
 Copto.glmer <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Copto")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", 
+  filter(pred == "Copto")%>%
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  + (1|trial) + (1|bath) + (1|location), family = "binomial", 
         data = ., control = glmerControl(optimizer = "bobyqa"))
   
 Pachy.glmer <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Pachy")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", 
+  filter(pred == "Pachy")%>%
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|trial) + (1|bath) + (1|location), family = "binomial", 
         data = ., control = glmerControl(optimizer = "bobyqa"))
 
 Tram.glmer <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Tramea")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|Bath), family = "binomial", 
+  filter(pred == "Tramea")%>%
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2) + (1|bath), family = "binomial", 
         data = ., control = glmerControl(optimizer = "bobyqa"))
 
 
@@ -356,7 +327,7 @@ feed.data <- as.data.frame(feed.data)
 getpredict <- function(model, species, subdata){
   feed.data%>%
     drop_na(Numeaten)%>%
-    filter(Pred == species)%>%
+    filter(pred == species)%>%
     cbind(predictInterval(model, newdata = subdata, type = "probability", 
                           which = "fixed", include.resid.var = F))%>%
     return()
@@ -368,10 +339,10 @@ getpredict <- function(model, species, subdata){
 ###Create the subset data
 Buendata <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Buenoa")
+  filter(pred == "Buenoa")
 
 ###Set predmass = to mean value
-Buendata$Predmass <- mean(Buendata$Predmass, na.rm = T)
+Buendata$predmass <- mean(Buendata$predmass, na.rm = T)
 
 ###Calculate predicted values
 Buen.predict <- getpredict(Buen.glmer, "Buenoa", Buendata)
@@ -381,10 +352,10 @@ Buen.predict <- getpredict(Buen.glmer, "Buenoa", Buendata)
 ###Create the subset of data
 Indata <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Indica")
+  filter(pred == "Indica")
 
 ###Set predmass = to mean value
-Indata$Predmass <- mean(Indata$Predmass, na.rm = T)
+Indata$predmass <- mean(Indata$predmass, na.rm = T)
 
 
 ###Calculate the predicted values
@@ -394,10 +365,10 @@ Ind.predict <- getpredict(Ind.glmer, "Indica", Indata)
 ###Create the subset of data
 Irrdata <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Irrorata")
+  filter(pred == "Irrorata")
 
 ###Set predmass = to mean value
-Irrdata$Predmass <- mean(Irrdata$Predmass, na.rm = T)
+Irrdata$predmass <- mean(Irrdata$predmass, na.rm = T)
 
 ###Calculate the predicted values
 Irr.predict <- getpredict(Irr.glmer, "Irrorata", Irrdata)
@@ -407,10 +378,10 @@ Irr.predict <- getpredict(Irr.glmer, "Irrorata", Irrdata)
 ###Create the subset of data
 Coptodata <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Copto")
+  filter(pred == "Copto")
 
 ###Set predmass = to mean value
-Coptodata$Predmass <- mean(Coptodata$Predmass, na.rm = T)
+Coptodata$predmass <- mean(Coptodata$predmass, na.rm = T)
 
 ###Calculate the predicted values
 Copto.predict <- getpredict(Copto.glmer, "Copto", Coptodata)
@@ -419,10 +390,10 @@ Copto.predict <- getpredict(Copto.glmer, "Copto", Coptodata)
 ###Create the subset of data
 Pachydata <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Pachy")
+  filter(pred == "Pachy")
 
 ###Set predmass = to mean value
-Pachydata$Predmass <- mean(Pachydata$Predmass, na.rm = T)
+Pachydata$predmass <- mean(Pachydata$predmass, na.rm = T)
 
 ###Calculate the predicted values
 Pachy.predict <- getpredict(Pachy.glmer, "Pachy", Pachydata)
@@ -431,18 +402,18 @@ Pachy.predict <- getpredict(Pachy.glmer, "Pachy", Pachydata)
 ###Create the subset of data
 Tramdata <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Tramea")
+  filter(pred == "Tramea")
 
 ###Set predmass = to mean value
-Tramdata$Predmass <- mean(Tramdata$Predmass, na.rm = T)
+Tramdata$predmass <- mean(Tramdata$predmass, na.rm = T)
 
 ###Calculate the predicted values
 Tram.predict <- getpredict(Tram.glmer, "Tramea", Tramdata)
 
 ##Combine each of these to a final data set
 final.data <- rbind(Buen.predict, Irr.predict, Ind.predict, Copto.predict, Pachy.predict, Tram.predict)%>%
-  mutate(Pred = factor(Pred))%>%
-  mutate(Pred = fct_relevel(Pred, c("Buenoa", "Indica", "Irrorata", "Copto", "Pachy", "Tramea")))
+  mutate(pred = factor(pred))%>%
+  mutate(pred = fct_relevel(pred, c("Buenoa", "Indica", "Irrorata", "Copto", "Pachy", "Tramea")))
 
 ###################
 
@@ -455,8 +426,8 @@ cbPalette <- c("#CC79A7", "#78C1EA", "#009E73", "#E69F00", "#D55E00", "#0072B2")
 
 ###Faceted by species
 final.data%>%
-  ggplot(aes(x = Temp, y = fit*100, color = Pred, fill = Pred)) +
-  facet_wrap(~Pred, labeller = labeller(Pred = c("Buenoa" = "Buenoa sp.", 
+  ggplot(aes(x = Temp, y = fit*100, color = pred, fill = pred)) +
+  facet_wrap(~pred, labeller = labeller(pred = c("Buenoa" = "Buenoa sp.", 
                                                  "Indica" = "N. indica", 
                                                  "Irrorata" = "N. irrorata", 
                                                  "Copto" = "C. loticus", 
@@ -466,7 +437,7 @@ final.data%>%
   geom_line(size = 1.5) +
   geom_ribbon(alpha = 0.25, aes(ymin = lwr*100, ymax = upr*100), linetype = 0) +
   theme_classic() +
-  labs(x = "Temperature (C)", y = "Number of Prey Eaten +/- CI") +   
+  labs(x = "Temperature (C)", y = "Number of prey eaten ± CI") +   
   theme(axis.title = element_text(size = 22),
         axis.text = element_text(size=18),
         strip.text = element_text(size=16, face = "italic"),
@@ -485,9 +456,9 @@ ggsave("Figures/Feedresults.pdf", width = 13.32, height = 7.27)
 final.data%>%
   ggplot(aes(x = Temp, y = fit*100)) +
   #geom_point(aes(y = Numeaten)) +
-  geom_line(aes(color = Pred), size = 2) +
+  geom_line(aes(color = pred), size = 2) +
   theme_classic() +
-  labs(x = "Temperature (C)", y = "# Eaten") +   
+  labs(x = "Temperature (C)", y = "Number of prey eaten ± CI") +   
   theme(axis.title = element_text(size = 20),
         axis.text = element_text(size=18),
         legend.text = element_text(size = 14, face = "italic"),
@@ -510,10 +481,10 @@ ggsave("Figures/Feedresults2.pdf", width = 6.5, height = 6.0)
 
 final.data%>%
   ggplot(aes(x = Temp, y = fit*100)) +
-  geom_line(aes(color = Pred), size = 2) +
-  geom_ribbon(alpha = 0.25, aes(ymin = lwr*100, ymax = upr*100, fill = Pred), show.legend = F) +
+  geom_line(aes(color = pred), size = 2) +
+  geom_ribbon(alpha = 0.25, aes(ymin = lwr*100, ymax = upr*100, fill = pred), show.legend = F) +
   theme_classic() +
-  labs(x = "Temperature (C)", y = "# Eaten +/- SE") +   
+  labs(x = "Temperature (C)", y = "Number of prey eaten ± CI") +   
   theme(axis.title = element_text(size = 20),
         axis.text = element_text(size=18),
         legend.text = element_text(size = 14, face = "italic"),
@@ -551,8 +522,8 @@ ggsave("Figures/Feedresults3.pdf", width = 9.5, height = 5.9)
 runglm <- function(species, terms){
   feed.data%>%
     na.omit()%>%
-    filter(Pred == species)%>%
-    glm(data = .,cbind(round(Numeaten), round(100 - Numeaten)) ~ poly(Temp, terms) + Predmass,
+    filter(pred == species)%>%
+    glm(data = .,cbind(round(Numeaten), round(100 - Numeaten)) ~ poly(Temp, terms) + predmass,
         family = "binomial")%>%
     return()
 }
@@ -563,8 +534,8 @@ runglm <- function(species, terms){
 ##Looking for effects of each random effect
 feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Buenoa")%>%
-  ggplot(aes(x = Temp, y = Numeaten, color = Location)) + 
+  filter(pred == "Buenoa")%>%
+  ggplot(aes(x = Temp, y = Numeaten, color = location)) + 
   #geom_smooth() +
   geom_point() +
   geom_jitter(width = 1)
@@ -573,9 +544,9 @@ library(car)
 ##Testing for significance in random effects by including them as fixed. Just gonna run these a bunch of times with different predators and different effects as fixed
 feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Pachy")%>%
+  filter(pred == "Pachy")%>%
   glmer(data = ., cbind(round(Numeaten), round(100 - Numeaten)) ~ poly(Temp, 2) +
-          (1|Trial) + (1|Bath) + (1|Location), family = "binomial")%>%
+          (1|trial) + (1|bath) + (1|location), family = "binomial")%>%
   Anova(type = 3)
 
 ##They're all significant for all species. I'm moving forward with the full models
@@ -657,7 +628,7 @@ Tram.glmer <- runglmer("Tramea", 2)
 #Add second order temperature values
 Indata <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Indica")%>%
+  filter(pred == "Indica")%>%
   mutate(Temp2 = Temp^2,
          roundNumeaten = round(Numeaten),
          roundNumsurv = round(100-Numeaten))
@@ -667,8 +638,8 @@ Indata <- feed.data%>%
 #Pasting the model here for tweaking
 Ind.glmer.test <-feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Indica")%>%
-  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp,2)  + scale(Predmass) + (1|Trial) + (1|Bath) + (1|Location), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
+  filter(pred == "Indica")%>%
+  glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp,2)  + scale(predmass) + (1|trial) + (1|bath) + (1|location), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
 
 #Get predicteds
 Ind.predict.test <- getpredict(Ind.glmer.test, "Indica", Indata)
@@ -677,7 +648,7 @@ Ind.predict.test <- getpredict(Ind.glmer.test, "Indica", Indata)
 
 feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Indica")%>%
+  filter(pred == "Indica")%>%
   cbind(predictInterval(Ind.glmer.test, newdata = ., type = "probability", 
                         which = "fixed", include.resid.var = F))%>%
   ggplot(aes(x = Temp, y = Numeaten)) +
@@ -689,7 +660,7 @@ averageObs(Ind.glmer.test)
 
 
 Ind.predict%>%
-  ggplot(aes(x = Bath, y = fit)) +
+  ggplot(aes(x = bath, y = fit)) +
   geom_point()
 
 
@@ -714,7 +685,7 @@ nls(Numeaten ~ I(k / 1 + exp(-r * (Temp - a))), data = Indata,
 
 library(minpack.lm)
 
-nlsLM(Numeaten ~ I(k / 1 + exp(-r * (Temp - a))) + (1|Trial), data = Indata,
+nlsLM(Numeaten ~ I(k / 1 + exp(-r * (Temp - a))) + (1|trial), data = Indata,
       start = list(k = log(50), r = 0.03, a = -5.7))
 
 #Not working either. Volker suggested using SSasymp to generate starting parameters. His example code is in the next chunk. Giving it a try here
@@ -794,14 +765,14 @@ feed.data <- as.data.frame(feed.data)
 
 Buen.glmer <- feed.data%>%
     drop_na(Numeaten)%>%
-    filter(Pred == "Buenoa")%>%
-    glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  +  scale(Predmass) + (1|Trial) + (1|Bath), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
+    filter(pred == "Buenoa")%>%
+    glmer(cbind(round(Numeaten), round(100-Numeaten)) ~ poly(Temp, 2)  +  scale(predmass) + (1|trial) + (1|bath), family = "binomial", data = ., control = glmerControl(optimizer = "bobyqa"))
 
 
 #Creating a dataset of the Buenoa data so I don't need to keep filtering
 Buendata <- feed.data%>%
   drop_na(Numeaten)%>%
-  filter(Pred == "Buenoa")
+  filter(pred == "Buenoa")
 
 
 #Testing out predictInteral function for generating and graphing predicted values
@@ -809,7 +780,7 @@ Buendata <- feed.data%>%
 #I was having an issue where I couldn't get the function to ignore/hold constant predmass, and it was giving me a jagged curve. Ultimately the only thing I could do that worked is to manually set the predmass values to the average value across all individuals of the same species. That's below:
 
 #Set predator masses to the mean value
-Buendata$Predmass <- mean(Buendata$Predmass, na.rm = T)
+Buendata$predmass <- mean(Buendata$predmass, na.rm = T)
 
 #Use predictInterval to calculate predictions and CI's then graph
 Buendata%>%
@@ -834,7 +805,7 @@ c(beta =getME(., "beta"), sigma = s, sig01 = unname(s * getME(., "theta"))) }
 #Here's the actual bootMer function
 feed.data%>%
   na.omit()%>%
-  filter(Pred == "Buenoa")%>%
+  filter(pred == "Buenoa")%>%
   bootMer(Buen.glmer, mySumm, re.form = NA)
 
 
@@ -847,7 +818,7 @@ library(marginaleffects)
 
 
 
-#Predictions function to generate predictions. 
+#predictions function to generate predictions. 
 predictions(Buen.glmer, type = "response", variables = "Temp")
 ggplot(aes(x = Temp))
 
@@ -874,13 +845,13 @@ ggpredict(Buen.glmer, terms = "Temp [all]")
 #Buenoa
 Buenoa.predict <- feed.data%>%
   na.omit()%>%
-  filter(Pred == "Buenoa")%>%
-  mutate(Predicted = predictInterval(Buen.glmer, newdata = .)$fit,
+  filter(pred == "Buenoa")%>%
+  mutate(predicted = predictInterval(Buen.glmer, newdata = .)$fit,
          UprSE = predictInterval(Buen.glmer, newdata = .)$upr,
-         LwrSE = Predicted - predictInterval(Buen.glmer, newdata = .)$lwr)
+         LwrSE = predicted - predictInterval(Buen.glmer, newdata = .)$lwr)
 
 #Make new data frame to add each species' data to for graphing
-Feed.fit.df <- data.frame(Trial = NA, Bath = NA, Location = NA,  Pred = NA, Temp = NA, Numeaten = NA, Predmass = NA, fit = NA, fit_link = NA, se_link = NA, fit_resp = NA, upr = NA, lwr = NA)
+Feed.fit.df <- data.frame(trial = NA, bath = NA, location = NA,  pred = NA, Temp = NA, Numeaten = NA, predmass = NA, fit = NA, fit_link = NA, se_link = NA, fit_resp = NA, upr = NA, lwr = NA)
 
 
 #make new data set for predictions
@@ -888,12 +859,12 @@ library(merTools)
 
 Buen.predict <- feed.data%>%
   na.omit()%>%
-  filter(Pred == "Buenoa")%>%
+  filter(pred == "Buenoa")%>%
   predictInterval(Buen.glmer, newdata = ., which = "fixed", type = "probability")
 
 #ndata <- feed.data%>%
 #na.omit()%>%
-#filter(Pred == "Buenoa")%>%
+#filter(pred == "Buenoa")%>%
 #with(data = ., data_frame(Temp = seq(min(Temp), max(Temp),
 #length = 1000)))
 
