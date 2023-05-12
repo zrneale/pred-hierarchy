@@ -31,7 +31,7 @@ cont.df <- feedRate.df%>%
 
 
 cont.glmer <- cont.df%>%
-  glmer(data = ., cbind(surv, dead) ~ Temp  + (1|trial) + (1|bath) + (1|location), family = "binomial")
+  glmer(data = ., cbind(surv, dead) ~ temp  + (1|trial) + (1|bath) + (1|location), family = "binomial")
 
 plot(cont.glmer)
 
