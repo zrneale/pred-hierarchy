@@ -192,15 +192,18 @@ Tram.glmer <- feed.data%>%
 
 #Add predicted values and plot them
 
-library(merTools) #Package with function for calculating predicted SE from glmer
+library(AICcmodavg) #Package for generating standard errors from glmer objects
+
+#library(merTools) #Package with function for calculating prediction intervals from glmer.
 ##Create function for generating predicted values
 
 getpredict <- function(model, species, subdata){
-  feed.data%>%
-    drop_na(Numeaten)%>%
-    filter(pred == species)%>%
-    cbind(predictInterval(model, newdata = subdata, type = "probability", 
-                          which = "fixed", include.resid.var = F))%>%
+  subdata%>%
+    #cbind(predictInterval(model, newdata = subdata, type = "probability", 
+                          #which = "fixed", include.resid.var = F))%>% #Uncomment if prediction interval desired instead of se
+    cbind(predictSE.mer(model, se.fit = T, newdata = subdata, type = "response"))%>% #Generate standard errors
+    mutate(lwr = fit - se.fit, upr = fit + se.fit)%>%
+    dplyr::select(-se.fit)%>%
     return()
   
 }
@@ -295,29 +298,32 @@ final.data <- rbind(Buen.predict, Irr.predict, Ind.predict, Copto.predict, Pachy
 
 cbPalette <- c("#CC79A7", "#78C1EA", "#009E73", "#E69F00", "#D55E00", "#0072B2")
 
+##Species labels
+spLabs <- c("Buenoa" = "B. scimitra", 
+            "Indica" = "N. indica", 
+            "Irrorata" = "N. irrorata", 
+            "Copto" = "C. loticus", 
+            "Pachy" = "P. longipennis",
+            "Tramea" = "T. carolina")
+
 ###Faceted by species
 final.data%>%
   ggplot(aes(x = temp, y = fit*100, color = pred, fill = pred)) +
-  facet_wrap(~pred, labeller = labeller(pred = c("Buenoa" = "Buenoa sp.", 
-                                                 "Indica" = "N. indica", 
-                                                 "Irrorata" = "N. irrorata", 
-                                                 "Copto" = "C. loticus", 
-                                                 "Pachy" = "P. longipennis",
-                                                 "Tramea" = "T. carolina"))) +
+  facet_wrap(~pred, labeller = labeller(pred = spLabs)) +
   geom_point(aes(y = Numeaten)) +
   geom_line(size = 1.5) +
   geom_ribbon(alpha = 0.25, aes(ymin = lwr*100, ymax = upr*100), linetype = 0) +
   theme_classic() +
-  labs(x = "temperature (C)", y = "Number of prey eaten ± CI") +   
-  theme(axis.title = element_text(size = 22),
-        axis.text = element_text(size=18),
-        strip.text = element_text(size=16, face = "italic"),
+  labs(x = "Temperature (C)", y = "Number of prey eaten ± SE") +   
+  theme(axis.title = element_text(size = 28),
+        axis.text = element_text(size=24),
+        strip.text = element_text(size=22, face = "italic"),
         legend.position = 0) +
   scale_color_manual(values = cbPalette) +
   scale_fill_manual(values = cbPalette)
 
 #Uncomment to save
-#ggsave("Figures/Feedresults.pdf", width = 13.32, height = 7.27)
+ggsave("Figures/Feedresults.jpeg", width = 13.32, height = 7.27)
 
 ###All species in one panel WITHOUT error bars
 
@@ -327,23 +333,18 @@ final.data%>%
   #geom_point(aes(y = Numeaten)) +
   geom_line(aes(color = pred), size = 2) +
   theme_classic() +
-  labs(x = "temperature (C)", y = "Number of prey eaten ± CI") +   
+  labs(x = "Temperature (C)", y = "Number of prey eaten ± SE") +   
   theme(axis.title = element_text(size = 20),
         axis.text = element_text(size=18),
         legend.text = element_text(size = 14, face = "italic"),
         legend.title = element_text(size = 16),
         legend.position = "none") +
   scale_color_manual(values = cbPalette, name = "species",
-                     labels = c("Buenoa" = "Buenoa sp.", 
-                                "Indica" = "N. indica", 
-                                "Irrorata" = "N. irrorata", 
-                                "Copto" = "C. loticus", 
-                                "Pachy" = "P. longipennis",
-                                "Tramea" = "T. carolina")) +
+                     labels = spLabs) +
   scale_fill_manual(values = cbPalette) 
 
 #Uncomment to save
-#ggsave("Figures/Feedresults2.pdf", width = 6.5, height = 6.0)
+#ggsave("Figures/Feedresults2.jpeg", width = 6.5, height = 6.0)
 
 
 #All species in one panel WITH error bars
@@ -353,22 +354,17 @@ final.data%>%
   geom_line(aes(color = pred), size = 2) +
   geom_ribbon(alpha = 0.25, aes(ymin = lwr*100, ymax = upr*100, fill = pred), show.legend = F) +
   theme_classic() +
-  labs(x = "temperature (C)", y = "Number of prey eaten ± CI") +   
+  labs(x = "Temperature (C)", y = "Number of prey eaten ± SE") +   
   theme(axis.title = element_text(size = 20),
         axis.text = element_text(size=18),
         legend.text = element_text(size = 14, face = "italic"),
         legend.title = element_text(size = 16)) +
   scale_color_manual(values = cbPalette, name = "species",
-                     labels = c("Buenoa" = "Buenoa sp.", 
-                                "Indica" = "N. indica", 
-                                "Irrorata" = "N. irrorata", 
-                                "Copto" = "C. loticus", 
-                                "Pachy" = "P. longipennis",
-                                "Tramea" = "T. carolina")) +
+                     labels = spLabs) +
   scale_fill_manual(values = cbPalette) 
 
 #Uncomment to save
-#ggsave("Figures/Feedresults3.pdf", width = 9.5, height = 5.9)
+#ggsave("Figures/Feedresults3.jpeg", width = 9.5, height = 5.9)
 
 
 
