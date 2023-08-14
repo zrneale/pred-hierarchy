@@ -165,6 +165,7 @@ Pachyheat<-mutate(ndata,
 #Add to the master df
 allHeatDf <- rbind (allHeatDf, Pachyheat)
 
+
 #Irrorata
 #The Irrorata glm gave a warning because of complete/quasi separation of data. Conduct a Firth's biased-reduced logistic regression
 
