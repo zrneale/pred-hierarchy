@@ -314,7 +314,7 @@ final.data%>%
   geom_line(size = 1.5) +
   geom_ribbon(alpha = 0.25, aes(ymin = lwr*100, ymax = upr*100), linetype = 0) +
   theme_classic() +
-  labs(x = "Temperature (C)", y = "Number of prey eaten ± SE") +   
+  labs(x = "Temperature (C)", y = "Number of prey eaten") +   
   theme(axis.title = element_text(size = 28),
         axis.text = element_text(size=24),
         strip.text = element_text(size=22, face = "italic"),
@@ -333,9 +333,9 @@ final.data%>%
   #geom_point(aes(y = Numeaten)) +
   geom_line(aes(color = pred), size = 2) +
   theme_classic() +
-  labs(x = "Temperature (C)", y = "Number of prey eaten ± SE") +   
-  theme(axis.title = element_text(size = 20),
-        axis.text = element_text(size=18),
+  labs(x = "Temperature (C)", y = "Number of prey eaten") +   
+  theme(axis.title = element_text(size = 24),
+        axis.text = element_text(size=20),
         legend.text = element_text(size = 14, face = "italic"),
         legend.title = element_text(size = 16),
         legend.position = "none") +
@@ -354,9 +354,9 @@ final.data%>%
   geom_line(aes(color = pred), size = 2) +
   geom_ribbon(alpha = 0.25, aes(ymin = lwr*100, ymax = upr*100, fill = pred), show.legend = F) +
   theme_classic() +
-  labs(x = "Temperature (C)", y = "Number of prey eaten ± SE") +   
-  theme(axis.title = element_text(size = 20),
-        axis.text = element_text(size=18),
+  labs(x = "Temperature (C)", y = "Number of prey eaten") +   
+  theme(axis.title = element_text(size = 24),
+        axis.text = element_text(size=20),
         legend.text = element_text(size = 14, face = "italic"),
         legend.title = element_text(size = 16)) +
   scale_color_manual(values = cbPalette, name = "species",
@@ -364,7 +364,7 @@ final.data%>%
   scale_fill_manual(values = cbPalette) 
 
 #Uncomment to save
-#ggsave("Figures/Feedresults3.jpeg", width = 9.5, height = 5.9)
+ggsave("Figures/Feedresults3.jpeg", width = 9.5, height = 5.9)
 
 
 
