@@ -10,14 +10,9 @@ feedRate.df <- read.csv("Data/pred.hier.feed.csv", header=T)%>%
 #Replace surv > 100 with 100. Any values above 100 were from counting error
 feedRate.df$surv[feedRate.df$surv > 100]<-100
 
-
-#Next I'll do the actual GLM to get the predicted survivor values for the controls.  Actually, not that I think about it a GLM wouldn't work because I expect the relationship to be nonlinear.  A GAM might be better, though this may be dependent on how I ultimately analyze the feeding rates.  I'll stick with GAM for now and revisit this down the line.
-
-#Add column for number dead for the binomial glm's
-
+#Add a column for number dead for the binomial glm's
 feedRate.df <- feedRate.df%>%
   mutate(dead = 100 - surv)
-
 
 #Calculate background mortality with binomial glmer
 
@@ -42,7 +37,7 @@ cont.df%>%
   geom_line(aes(y = predicted * 100)) +
   geom_point()
 
-#Add predicted values to control df
+#Add model - predicted values to control df
 cont.df <- cont.df%>%
   mutate(backmortProp = 1 - predict(cont.glmer, newdata = cont.df,
                                     type = "response", re.form = ~0),
@@ -153,7 +148,7 @@ CoptoAIC <- selectmodel("Copto")
 PachyAIC <- selectmodel("Pachy")
 TramAIC <- selectmodel("Tramea")
 
-#Run the best models for each species
+#Run the best models for each species. Any models that failed to converge were not considered
 
 Buen.glmer <- feed.data%>%
   drop_na(Numeaten)%>%
@@ -215,7 +210,7 @@ Buendata <- feed.data%>%
   drop_na(Numeaten)%>%
   filter(pred == "Buenoa")
 
-###Set predmass = to mean value
+###Set predmass = to mean value for graphing purposes
 Buendata$predmass <- mean(Buendata$predmass, na.rm = T)
 
 ###Calculate predicted values
@@ -228,7 +223,7 @@ Indata <- feed.data%>%
   drop_na(Numeaten)%>%
   filter(pred == "Indica")
 
-###Set predmass = to mean value
+###Set predmass = to mean value  for graphing purposes
 Indata$predmass <- mean(Indata$predmass, na.rm = T)
 
 
@@ -241,7 +236,7 @@ Irrdata <- feed.data%>%
   drop_na(Numeaten)%>%
   filter(pred == "Irrorata")
 
-###Set predmass = to mean value
+###Set predmass = to mean value  for graphing purposes
 Irrdata$predmass <- mean(Irrdata$predmass, na.rm = T)
 
 ###Calculate the predicted values
@@ -254,7 +249,7 @@ Coptodata <- feed.data%>%
   drop_na(Numeaten)%>%
   filter(pred == "Copto")
 
-###Set predmass = to mean value
+###Set predmass = to mean value  for graphing purposes
 Coptodata$predmass <- mean(Coptodata$predmass, na.rm = T)
 
 ###Calculate the predicted values
@@ -266,7 +261,7 @@ Pachydata <- feed.data%>%
   drop_na(Numeaten)%>%
   filter(pred == "Pachy")
 
-###Set predmass = to mean value
+###Set predmass = to mean value for graphing purposes
 Pachydata$predmass <- mean(Pachydata$predmass, na.rm = T)
 
 ###Calculate the predicted values
@@ -278,7 +273,7 @@ Tramdata <- feed.data%>%
   drop_na(Numeaten)%>%
   filter(pred == "Tramea")
 
-###Set predmass = to mean value
+###Set predmass = to mean value for graphing purposes
 Tramdata$predmass <- mean(Tramdata$predmass, na.rm = T)
 
 ###Calculate the predicted values
@@ -291,7 +286,7 @@ final.data <- rbind(Buen.predict, Irr.predict, Ind.predict, Copto.predict, Pachy
 
 ###################
 
-#Now graph it
+#Produce graphs
 
 
 ##colorblind friendly palette
@@ -325,29 +320,9 @@ final.data%>%
 #Uncomment to save
 ggsave("Figures/Feedresults.jpeg", width = 13.32, height = 7.27)
 
-###All species in one panel WITHOUT error bars
-
-#Using color so here's a colorblind friendly palette
-final.data%>%
-  ggplot(aes(x = temp, y = fit*100)) +
-  #geom_point(aes(y = Numeaten)) +
-  geom_line(aes(color = pred), size = 2) +
-  theme_classic() +
-  labs(x = "Temperature (C)", y = "Number of prey eaten") +   
-  theme(axis.title = element_text(size = 24),
-        axis.text = element_text(size=20),
-        legend.text = element_text(size = 14, face = "italic"),
-        legend.title = element_text(size = 16),
-        legend.position = "none") +
-  scale_color_manual(values = cbPalette, name = "species",
-                     labels = spLabs) +
-  scale_fill_manual(values = cbPalette) 
-
-#Uncomment to save
-#ggsave("Figures/Feedresults2.jpeg", width = 6.5, height = 6.0)
 
 
-#All species in one panel WITH error bars
+#All species in one panel
 
 final.data%>%
   ggplot(aes(x = temp, y = fit*100)) +
@@ -364,7 +339,7 @@ final.data%>%
   scale_fill_manual(values = cbPalette) 
 
 #Uncomment to save
-ggsave("Figures/Feedresults3.jpeg", width = 9.5, height = 5.9)
+ggsave("Figures/Feedresults2.jpeg", width = 9.5, height = 5.9)
 
 
 

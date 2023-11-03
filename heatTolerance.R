@@ -190,7 +190,7 @@ ndata<-bind_cols(ndata, setNames(as_tibble(predict(
   Irr.logistf, ndata, se.fit = TRUE)[1:2]),
   c('fit_link','se_link')))
 
-#Back transform. Use same ilink function from the last species, since it's the same
+#Back transform
 Irrheat<-mutate(ndata,
                   fit_resp=ilink(fit_link),
                   upr=ilink(fit_link+(se_link)),
@@ -374,7 +374,7 @@ allHeatDf%>%
   geom_point(data = df.long, aes(y = surv), size = 2) +
   geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.3, linetype = 0) +
   theme_classic() +
-  labs(x = "Temperature (C)", y = "Survivorship ± SE") +
+  labs(x = "Temperature (°C)", y = "Survivorship") +
   theme(axis.title = element_text(size = 28),
         axis.text.x = element_text(size=18),
         axis.text.y = element_text(size = 24),
@@ -388,7 +388,7 @@ allHeatDf%>%
 
 
 #Uncomment to save
-#ggsave("Figures/Heat.tolerance.jpeg", width = 13.32, height = 7.27)
+ggsave("Figures/Heat.tolerance.jpeg", width = 13.32, height = 7.27)
 
 
 

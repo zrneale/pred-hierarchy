@@ -5,10 +5,10 @@ GENERAL INFORMATION
 1. Paper information
 Citation: Zoey Neale and Volker Rudolf. 2023. Warming leads to shifts in predator hierarchy within communities. In preparation
 
-Abstract: Most resources are subject to consumption from multiple consumer species. Consumers generally show a natural hierarchy of relative consumption rates, with resource communities facing greater pressure from some consumers than others. However, feeding rates are strongly dependent on the temperatures individuals experience. Despite recent progress in documenting these relationships for individual species, it remains unclear how warming affects the hierarchies of consumers within a local community. Species should be adapted to their local temperature regimes, which might suggest a parallel shift in feeding rates across consumers and thus preservation of their hierarchies when the system warms. However, if differences in traits (e.g. physiology or ecology) between sympatric species play a significant role in shaping how feeding rates scale with temperature, warming may reshuffle predator hierarchies. Here we compare feeding rate thermal responses of six aquatic insect predators feeding on the same planktonic prey. Predators were collected from one pond in Northeast Texas, housed in 500ml water heated to temperatures from 8 – 36C for 24 hours, then allowed to feed on 100 adult Daphnia pulex for two hours. The numbers of surviving prey were counted, and the numbers eaten were estimated after accounting for background mortality. Overall, we found differences in optimal temperatures and thermal sensitivities led to a reshuffling of the per capita feeding rate hierarchies among the predators tested here. Of the six species tested, only one demonstrated the expected hump-shaped response of feeding rate to temperature within the range tested, while feeding rates of the other five species increased monotonically. Additional experiments indicated the lethal temperatures for each predator was greater than the maximum temperature at which prey could survive, though for some it was only greater by 2-3C. Interestingly, this suggests the decline in predation rates at higher temperatures predicted by past studies may not always be relevant in natural system. Furthermore, we found feeding rates of consumers differed in sensitivity to changes in temperature. Consequently, increasing feeding rates with rising temperatures in one species can be offset by decreasing feeding rates in another. These results indicate a complex relationship between total consumption and temperature at the community level. They also suggest climate warming could restructure ecological networks, with major implications for the functioning of ecosystems and evolution of predator and prey traits. 
+Abstract: Changes in global temperature regimes are expected to transform species interactions in natural communities. However, predicting the consequences of warming on populations and communities is challenging because species interact with a range of community members. In theory, species should be adapted to their local temperature regimes, which might suggest a parallel shift in across-species interactions. But this may not hold true if differences in traits (e.g., physiology or ecology) between sympatric species lead to concurrent differences in thermal responses. Here we compare thermal responses of feeding rates of 6 aquatic predator species from the same community feeding on the same prey species. Individual predators were experimentally exposed to temperatures ranging from 8-36°C, spanning the temperature range of their native habitat. We found qualitative and quantitative differences in thermal response curves of per-capita feeding across species that led to a reshuffling of predator hierarchies (relative differences in predation rates) along the temperature gradient. Of the six species tested, only two demonstrated the expected hump-shaped response of feeding rate to temperature within the range tested, while feeding rates of the other five species increased monotonically. Additional experiments indicated the lethal temperatures for each predator was greater than the maximum temperature at which prey could survive, though for some it was only greater by 2-3C. Interestingly, this suggests the decline in predation rates at higher temperatures predicted by past studies may not always be biologically relevant in natural system. Furthermore, we found feeding rates of consumers differed in thermal optimum and sensitivity to changes in temperature. Consequently, increasing feeding rates with rising temperatures in one species can be offset by decreasing feeding rates in another. These results indicate a complex relationship between total consumption and temperature at the community level. They also suggest climate warming could restructure ecological networks, with major implications for the functioning of ecosystems and evolution of predator and prey traits. 
 
 2. Originators
-Neale, Zoey, Rice University. zoey.neale@rice.edu
+Neale, Zoey, Rice University. zn4@rice.edu
 Rudolf, Volker, Rice University. vr2@rice.edu
 
 3. Contact information
@@ -22,7 +22,7 @@ zneale@gmail.com
 Houston, TX
 
 6. Information about funding sources that supported the collection of the data:
-NSF DEB-1655626
+NSF DEB- 1655626
 
 ACCESS INFORMATION
 
@@ -46,14 +46,35 @@ Data files and variables
     predmass - the drymass of the predator
     temp - the temperature in Celcius
     pred - the predator species
+	Buen = Buenoa scimitar
+	Copto = Coptotomus loticus
+	Indica = Notonecta indica
+	Irrorata = Notonecta irrorata
+	Pachy = Pachydiplax longipennis
+	Tramea = Tramea carolina
     surv - the number of surviving prey
     dead - the number of dead prey
+2. pred.heat.tol.csv contains the number of predators surviving at the end of heat tolerance trials. Variables:
+    trial - the trial number/temporal block ID
+    chamber - the environmental chamber number
+    bath - the numeric ID of the water bath
+    temp - the temperature in Celsius
+    species - the predator species
+	Buen = Buenoa scimitar
+	Copto = Coptotomus loticus
+	Indica = Notonecta indica
+	Irrorata = Notonecta irrorata
+	Pachy = Pachydiplax longipennis
+	Trame = Tramea carolina
+    numSurv = the number of surviving individuals in the water bath
+    numTotal = the total number of individuals tested in water bath
+    
     
 Code scripts and workflow:
   
-  1. feedRates estimates predator feed rates and produces figures
+  1. feedRates.R estimates predator feed rates and produces figures
   
-  2. heatTolerance estimates the predator heat tolerances and produces figures
+  2. heatTolerance.R estimates the predator heat tolerances and produces figures
   
  
   SOFTWARE VERSIONS:
