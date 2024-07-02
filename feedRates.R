@@ -28,14 +28,29 @@ cont.glmer <- cont.df%>%
 
 plot(cont.glmer)
 
+# Calculate the predicted values
+cont_fit <- cont.df %>%
+  predictSE.mer(cont.glmer, newdata = ., type = "response")
 
+# Add predicted values to data frame
+cont.df <- cont.df %>%
+  mutate(fit_surv = cont_fit$fit,
+         se = cont_fit$se.fit,
+         fit_mort = (1-fit_surv))
 #Plot with data
 cont.df%>%
-  mutate(predicted = predict(cont.glmer, newdata = cont.df, 
-                             type = "response", re.form = ~0))%>%
-  ggplot(aes(x = temp, y = surv)) +
-  geom_line(aes(y = predicted * 100)) +
-  geom_point()
+  ggplot(aes(x = temp, y = dead)) +
+  geom_line(aes(y = fit_mort * 100)) +
+  geom_ribbon(aes(ymax = (fit_mort + se)*100, ymin = (fit_mort - se)*100), alpha = 0.3) +
+  geom_point() +
+  theme_classic() +
+  labs(x = "Temperature °C",
+       y = "Background mortality") +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 14))
+
+#Save figure
+ggsave("Figures/background_mort.jpeg")
 
 #Add model - predicted values to control df
 cont.df <- cont.df%>%
