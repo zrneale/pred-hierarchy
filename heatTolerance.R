@@ -375,20 +375,22 @@ allHeatDf%>%
   geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.3, linetype = 0) +
   theme_classic() +
   labs(x = "Temperature (°C)", y = "Survivorship") +
-  theme(axis.title = element_text(size = 28),
-        axis.text.x = element_text(size=18),
-        axis.text.y = element_text(size = 24),
-        strip.text = element_text(size=22, face = "italic"),
-        legend.position = 0) +
+  theme(axis.title = element_text(size = 16),
+        axis.text.x = element_text(size=12),
+        axis.text.y = element_text(size = 12),
+        strip.text = element_text(size=10, face = "italic"),
+        legend.position = "none") +
   geom_vline(xintercept = 35, linetype = "dashed", size = 0.5, alpha = 0.7) +
   scale_color_manual(values = cbPalette) +
   scale_fill_manual(values = cbPalette) +
   geom_point(data = LT.avg.df, aes(x = temp, y = .5), color = "black", size = 2) + 
-  geom_errorbarh(data = LT.avg.df, aes(xmin = lwrCI, xmax = uprCI, y = .5), color = "black", height = 0.05) 
+  geom_errorbarh(data = LT.avg.df, aes(xmin = lwrCI, xmax = uprCI, y = .5), color = "black", height = 0.05) +
+  ggtitle("Figure 4")
 
 
 #Uncomment to save
-ggsave("Figures/Heat.tolerance.jpeg", width = 13.32, height = 7.27)
+ggsave("Figures/figure4.pdf", width = 8.6, height = 4.6,
+       dpi = 600)
 
 
 

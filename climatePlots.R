@@ -22,7 +22,9 @@ finalDf%>%
   #filter(X. %in% 1:4000 | X. %in% 7500:20150 | X. %in% 22500:24400 | X. %in% 25400:31760 | X. > 33800)%>%
   #filter(X. %in% 24400:25400) %>%
   ggplot(aes(x = date,y = meanTemp)) +
-  #geom_point(size = 0.04) +
+  geom_point(size = 0.5, alpha = 0.3) +
+  geom_point(aes(y = minTemp), shape = 1, size = 0.5, alpha = 0.3) +
+  geom_point(aes(y = maxTemp), shape = 2, size = 0.5, alpha = 0.3) +
   # geom_smooth(color = "#FFC107", fill = "#FFC107", alpha = 0.2) +
   # geom_smooth(aes(y = minTemp), color = "#1E88E5", fill = "#1E88E5", alpha = 0.2) +
   # geom_smooth(aes(y = maxTemp), color = "#D81B60", fill = "#D81B60", alpha = 0.2) +
@@ -31,11 +33,13 @@ finalDf%>%
   geom_smooth(aes(y = maxTemp), color = "black", linetype = "dashed", se = F) +
   theme_classic() +
   labs(x = "Date", y = "Temperature (°C)") +
-  theme(axis.title = element_text(size = 20),
-        axis.text = element_text(size = 16),
+  theme(axis.title = element_text(size = 12),
+        axis.text = element_text(size = 8),
         plot.margin = margin(t = 10, b = 5, l = 10, r = 25)) +
-  scale_x_date(date_breaks = "1 month", date_labels = "%b")
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  ggtitle("Figure 1")
 
-ggsave("Figures/dataLogger.jpeg", width = 6.5, height = 5.6)
+ggsave("Figures/figure1.pdf", width = 5, height = 4.1,
+       dpi = 600)
 
  

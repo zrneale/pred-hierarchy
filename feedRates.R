@@ -28,6 +28,7 @@ cont.glmer <- cont.df%>%
 
 plot(cont.glmer)
 
+library(AICcmodavg)
 # Calculate the predicted values
 cont_fit <- cont.df %>%
   predictSE.mer(cont.glmer, newdata = ., type = "response")
@@ -46,11 +47,13 @@ cont.df%>%
   theme_classic() +
   labs(x = "Temperature °C",
        y = "Background mortality") +
-  theme(axis.title = element_text(size = 16),
-        axis.text = element_text(size = 14))
+  theme(axis.title = element_text(size = 12),
+        axis.text = element_text(size = 10)) +
+  ggtitle("Figure 2")
 
 #Save figure
-ggsave("Figures/background_mort.jpeg")
+ggsave("Figures/figure2.pdf", dpi = 600,
+       height = 4.1, width = 5)
 
 #Add model - predicted values to control df
 cont.df <- cont.df%>%
@@ -317,48 +320,62 @@ spLabs <- c("Buenoa" = "B. scimitra",
             "Tramea" = "T. carolina")
 
 ###Faceted by species
-final.data%>%
+faceted_plot <- final.data%>%
   ggplot(aes(x = temp, y = fit*100, color = pred, fill = pred)) +
   facet_wrap(~pred, labeller = labeller(pred = spLabs)) +
   geom_point(aes(y = Numeaten)) +
-  geom_line(size = 1.5) +
+  geom_line(size = 1) +
   geom_ribbon(alpha = 0.25, aes(ymin = lwr*100, ymax = upr*100), linetype = 0) +
   theme_classic() +
   labs(x = "Temperature (C)", y = "Number of prey eaten") +   
-  theme(axis.title = element_text(size = 28),
-        axis.text = element_text(size=24),
-        strip.text = element_text(size=22, face = "italic"),
-        legend.position = 0) +
+  theme(axis.title = element_text(size = 10),
+        axis.text = element_text(size=8),
+        strip.text = element_text(size=8, face = "italic"),
+        legend.position = "none") +
   scale_color_manual(values = cbPalette) +
-  scale_fill_manual(values = cbPalette)
+  scale_fill_manual(values = cbPalette) +
+  ggtitle("Figure 3 \n a)")
 
+faceted_plot
 #Uncomment to save
-ggsave("Figures/Feedresults.jpeg", width = 13.32, height = 7.27)
+#ggsave("Figures/Feedresults.jpeg", width = 13.32, height = 7.27)
 
 
 
 #All species in one panel
 
-final.data%>%
+not_faceted_plot <- final.data%>%
   ggplot(aes(x = temp, y = fit*100)) +
-  geom_line(aes(color = pred), size = 2) +
+  geom_line(aes(color = pred), size = 1) +
   geom_ribbon(alpha = 0.25, aes(ymin = lwr*100, ymax = upr*100, fill = pred), show.legend = F) +
   theme_classic() +
   labs(x = "Temperature (C)", y = "Number of prey eaten") +   
-  theme(axis.title = element_text(size = 24),
-        axis.text = element_text(size=20),
-        legend.text = element_text(size = 14, face = "italic"),
-        legend.title = element_text(size = 16)) +
-  scale_color_manual(values = cbPalette, name = "species",
+  theme(axis.title = element_text(size = 10),
+        axis.text = element_text(size=8),
+        legend.text = element_text(size = 8, face = "italic"),
+        legend.title = element_text(size = 10)) +
+  scale_color_manual(values = cbPalette, name = "Species",
                      labels = spLabs) +
-  scale_fill_manual(values = cbPalette) 
+  scale_fill_manual(values = cbPalette) +
+  ggtitle("b)")
 
-#Uncomment to save
-ggsave("Figures/Feedresults2.jpeg", width = 9.5, height = 5.9)
+not_faceted_plot
+
+# #Uncomment to save
+# ggsave("Figures/Feedresults2.jpeg", width = 9.5, height = 5.9)
 
 
+# Combine the two
+library(ggpubr)
+ggarrange(faceted_plot, 
+          not_faceted_plot + theme(plot.margin = margin(0,70,0,130)),
+          ncol = 1,
+          heights = c(1.8,1)
+)
 
-
+ggsave("Figures/figure3.pdf", dpi = 600,
+       width = 6.5,
+       height = 6.8)
 
 
 
